@@ -1,37 +1,57 @@
 # Google NFC Smart Review System (FastAPI + LangChain + React)
 
-A modern, high-performance Google Review automation platform designed for physical NFC smart cards and QR codes.
+A modern, enterprise-grade Google Review automation platform designed for physical NFC smart cards and QR codes.
 
 * **Backend Engine:** **FastAPI** (Python 3.11+, Uvicorn, Pydantic, BackgroundTasks)
 * **AI Orchestration:** **LangChain** + **ChatGroq** (`qwen/qwen3.8-27b`)
-* **Frontend App:** **React** + **Vite** (Executive White UI, Mobile Touch Gestures)
+* **Frontend App:** **React 19** + **Vite** (Executive White UI, Mobile Touch Gestures)
 * **Cloud Infrastructure:** **Render** (Backend API) & **Vercel** (Global Frontend CDN)
 * **Database:** **Supabase PostgreSQL** with local SQLite fallback
 
 ---
 
-## 🌟 Key Architecture & Features
+## 📁 Repository Structure
 
-### 1. ⚡ FastAPI Backend (`Render`)
-* **Asynchronous High Concurrency:** Fast endpoints with sub-second response times.
-* **OpenAPI / Swagger Documentation:** Interactive API explorer at `/docs` and `/redoc`.
-* **LangChain Integration:** 
-  * Structured business profile extraction chain.
-  * Batch human-sounding 5-star review generation chain.
-  * Customer notes-to-review expansion chain.
-* **Background Tasks:** Asynchronously pre-generates 10 authentic reviews per store card without blocking HTTP response.
-
-### 2. ⚛️ React Frontend (`Vercel`)
-* **Executive White Theme:** Sleek, high-contrast dashboard with Google color accents and tactile NFC card layouts.
-* **Mobile-First Touch Gestures:** Native edge swipe-right to return from card details view; browser history integration (`popstate`).
-* **Customer Review Carousel:** 5-star cards carousel, 1-click clipboard copy + direct official Google Review write popup, and AI custom review tab.
+```
+google-review-backend-system/
+│
+├── frontend/                     # ⚛️ React + Vite Frontend (Deploy to Vercel)
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── AdminDashboard.jsx  # Executive White Theme Admin Dashboard
+│   │   │   └── CustomerReview.jsx  # 5★ Carousel & Custom AI Review Generator
+│   │   ├── App.jsx               # Universal Route Manager with Popstate Support
+│   │   ├── config.js             # Dynamic API URL Config (Render / Local)
+│   │   ├── index.css             # Google Colors Design Tokens & CSS
+│   │   └── main.jsx              # React 19 Entry Point
+│   ├── public/                   # Web icons and SVG assets
+│   ├── index.html                # HTML5 template with modern fonts
+│   ├── package.json              # React, Lucide Icons, Vite
+│   ├── vite.config.js            # Vite build configuration
+│   └── vercel.json               # Vercel SPA rewrites configuration
+│
+├── main.py                       # ⚡ FastAPI Application Server (Render Entry)
+├── database.py                   # 🗄️ Database Layer (Supabase PostgreSQL / SQLite)
+├── ai_service.py                 # 🦜 LangChain Orchestration & Groq LLM Chains
+├── templates/                    # 📄 Server-side Jinja Templates (Direct Preview)
+│   ├── admin.html
+│   ├── customer.html
+│   ├── inactive.html
+│   └── processing.html
+├── requirements.txt              # Python requirements (FastAPI, LangChain, Uvicorn)
+├── vercel.json                   # Root Vercel Monorepo build orchestrator
+├── .python-version               # Python 3.11.9 for Render stability
+├── .env.example                  # Environment configuration template
+├── .gitignore                    # Protects credentials, databases and node_modules
+└── README.md                     # Documentation
+```
 
 ---
 
 ## 🚀 Deployment Guide
 
 ### A. Deploy Backend to Render (FastAPI)
-1. In Render, create a new **Web Service** from this GitHub repository.
+1. In Render, select **Web Service** for this repo.
 2. Configuration:
    * **Runtime:** `Python 3`
    * **Build Command:** `pip install -r requirements.txt`
@@ -40,11 +60,12 @@ A modern, high-performance Google Review automation platform designed for physic
    * `GROQ_API_KEY`: Your Groq API key
    * `SECRET_KEY`: Random secret string
    * `DATABASE_URL`: Supabase PostgreSQL connection string
+4. Interactive Swagger Docs available at `/docs`!
 
 ### B. Deploy Frontend to Vercel (React)
-1. Import this GitHub repo in **Vercel**.
-2. Vercel automatically detects the included `vercel.json`:
-   * **Framework Preset:** Vite
+1. Import this repository in **Vercel**.
+2. Vercel automatically detects `vercel.json`:
+   * **Framework:** Vite
    * **Build Command:** `cd frontend && npm install && npm run build`
    * **Output Directory:** `frontend/dist`
 3. (Optional) Set Environment Variable in Vercel:
@@ -61,7 +82,7 @@ pip install -r requirements.txt
 python -m uvicorn main:app --host 0.0.0.0 --port 5000 --reload
 ```
 * API: `http://localhost:5000`
-* Swagger Docs: `http://localhost:5000/docs`
+* Swagger UI: `http://localhost:5000/docs`
 
 ### 2. Start React Frontend
 ```bash
