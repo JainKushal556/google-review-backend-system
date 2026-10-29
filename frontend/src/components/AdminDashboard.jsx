@@ -2,10 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE } from '../config';
 import { 
   CreditCard, Search, Plus, ExternalLink, Copy, Check, 
-  Trash2, RefreshCw, ArrowLeft, Store, Sparkles, AlertCircle, Play, Pause 
+  Trash2, RefreshCw, ArrowLeft, Store, Sparkles, AlertCircle, Play, Pause,
+  Lock, LogOut, ShieldCheck
 } from 'lucide-react';
 
 export default function AdminDashboard({ onOpenCard }) {
+  const [token, setToken] = useState(localStorage.getItem('nfc_admin_token') || '');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
+
   const [cards, setCards] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -25,7 +33,7 @@ export default function AdminDashboard({ onOpenCard }) {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    loadCards();
+    verifySession();
   }, []);
 
   const showToast = (msg) => {
@@ -33,10 +41,89 @@ export default function AdminDashboard({ onOpenCard }) {
     setTimeout(() => setToast(''), 3000);
   };
 
-  const loadCards = async () => {
+  const getAuthHeaders = () => ({
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`
+  });
+
+  const verifySession = async () => {
+    const savedToken = localStorage.getItem('nfc_admin_token');
+    if (!savedToken) {
+      setCheckingAuth(false);
+      setIsAuthenticated(false);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/verify`, {
+        headers: { 'Authorization': `Bearer ${savedToken}` }
+      });
+      if (res.ok) {
+        setToken(savedToken);
+        setIsAuthenticated(true);
+        loadCards(savedToken);
+      } else {
+        handleLogout();
+      }
+    } catch (err) {
+      handleLogout();
+    } finally {
+      setCheckingAuth(false);
+    }
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    if (!loginPassword.trim()) return;
+
+    setLoggingIn(true);
+    setLoginError('');
+
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: loginPassword.trim() })
+      });
+      const data = await res.json();
+
+      if (res.ok && data.token) {
+        localStorage.setItem('nfc_admin_token', data.token);
+        setToken(data.token);
+        setIsAuthenticated(true);
+        setLoginPassword('');
+        showToast('✅ Login Successful! Welcome Admin.');
+        loadCards(data.token);
+      } else {
+        setLoginError(data.detail || 'Incorrect admin password');
+      }
+    } catch (err) {
+      setLoginError('Could not connect to backend server');
+    } finally {
+      setLoggingIn(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('nfc_admin_token');
+    setToken('');
+    setIsAuthenticated(false);
+    setCards([]);
+    setSelectedCard(null);
+  };
+
+  const loadCards = async (activeToken = token) => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/api/cards`);
+      const res = await fetch(`${API_BASE}/api/cards`, {
+        headers: {
+          'Authorization': `Bearer ${activeToken}`
+        }
+      });
+      if (res.status === 401) {
+        handleLogout();
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setCards(data);
@@ -58,7 +145,7 @@ export default function AdminDashboard({ onOpenCard }) {
     try {
       const res = await fetch(`${API_BASE}/api/smart-detect`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ url, shop_name: shopName })
       });
       const data = await res.json();
@@ -86,7 +173,7 @@ export default function AdminDashboard({ onOpenCard }) {
     try {
       const res = await fetch(`${API_BASE}/api/cards`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           card_id: cardId,
           google_review_url: reviewUrl,
@@ -118,7 +205,7 @@ export default function AdminDashboard({ onOpenCard }) {
     try {
       const res = await fetch(`${API_BASE}/api/cards/${targetCardId}/toggle-status`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: getAuthHeaders()
       });
       const data = await res.json();
       if (res.ok) {
@@ -137,7 +224,10 @@ export default function AdminDashboard({ onOpenCard }) {
     if (e) e.stopPropagation();
     if (!window.confirm(`Delete card "${targetCardId}"?`)) return;
     try {
-      await fetch(`${API_BASE}/api/cards/${targetCardId}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/api/cards/${targetCardId}`, { 
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
       showToast('Card deleted');
       setSelectedCard(null);
       loadCards();
@@ -154,6 +244,61 @@ export default function AdminDashboard({ onOpenCard }) {
     setDescription('');
     setKeywords([]);
   };
+
+  // If checking authentication
+  if (checkingAuth) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
+          <div style={{ fontWeight: 700, color: '#0f172a' }}>Verifying Security Session...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Admin Login Lock Screen ──
+  if (!isAuthenticated) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div className="google-accent-bar" />
+        <div style={{ width: '100%', maxWidth: 400, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 24, boxShadow: '0 20px 40px -15px rgba(15,23,42,0.1)', padding: 32, textAlign: 'center' }}>
+          <div style={{ width: 52, height: 52, background: '#eff6ff', borderRadius: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#1a73e8', marginBottom: 16 }}>
+            <Lock size={26} />
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', marginBottom: 6 }}>Admin Dashboard</h2>
+          <p style={{ fontSize: 13, color: '#64748b', marginBottom: 24 }}>Enter your secure admin password to manage NFC review cards.</p>
+
+          <form onSubmit={handleLogin}>
+            <div style={{ marginBottom: 16, textAlign: 'left' }}>
+              <label style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: '#334155', marginBottom: 6 }}>
+                Master Admin Password
+              </label>
+              <input
+                type="password"
+                className="search-input"
+                style={{ paddingLeft: 14 }}
+                placeholder="••••••••"
+                value={loginPassword}
+                onChange={e => setLoginPassword(e.target.value)}
+                autoFocus
+              />
+            </div>
+
+            {loginError && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', fontSize: 13, fontWeight: 600, padding: '10px 14px', borderRadius: 10, marginBottom: 16 }}>
+                {loginError}
+              </div>
+            )}
+
+            <button type="submit" className="btn-primary" style={{ width: '100%', padding: 13, justifyContent: 'center' }} disabled={loggingIn}>
+              <ShieldCheck size={18} /> {loggingIn ? 'Authenticating...' : 'Unlock Dashboard'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   const filteredCards = cards.filter(c => {
     const matchesSearch = c.shop_name?.toLowerCase().includes(search.toLowerCase()) || 
@@ -187,6 +332,16 @@ export default function AdminDashboard({ onOpenCard }) {
             <Store size={18} /> Store Directory
           </div>
         </nav>
+
+        {/* Bottom Logout */}
+        <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+          <button 
+            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: 'none', background: 'transparent', color: '#dc2626', fontSize: 13, fontWeight: 700, cursor: 'pointer', borderRadius: 8 }}
+            onClick={handleLogout}
+          >
+            <LogOut size={16} /> Log Out
+          </button>
+        </div>
       </aside>
 
       {/* Mobile Top Header */}
@@ -199,9 +354,14 @@ export default function AdminDashboard({ onOpenCard }) {
             NFC Review Cards
           </div>
         </div>
-        <button className="btn-primary" style={{ padding: '8px 14px', fontSize: 13 }} onClick={() => setModalOpen(true)}>
-          <Plus size={16} /> Add Card
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn-primary" style={{ padding: '8px 12px', fontSize: 13 }} onClick={() => setModalOpen(true)}>
+            <Plus size={16} /> Add
+          </button>
+          <button className="btn-secondary" style={{ padding: '8px 10px', color: '#dc2626' }} onClick={handleLogout} title="Log Out">
+            <LogOut size={16} />
+          </button>
+        </div>
       </header>
 
       {/* Main Content Area */}

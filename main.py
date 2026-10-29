@@ -1,21 +1,28 @@
 """
 main.py — High-Performance API Server powered by FastAPI & LangChain
-Provides:
-  - Automatic OpenAPI / Swagger docs at /docs & /redoc
-  - Asynchronous background tasks for review generation
-  - Full CORS support for Vercel and third-party frontends
-  - Dual support: Standalone JSON API + Direct Template Rendering
+Features:
+  - Cryptographically secure Admin Token Authentication (HMAC-SHA256)
+  - Rate limiting on AI review endpoints against bot spam
+  - Security headers & CORS middleware
+  - Asynchronous background tasks for LangChain reviews generation
+  - OpenAPI / Swagger docs at /docs
 """
 import os
 import json
 import re
+import time
+import hmac
+import hashlib
+import secrets
+from collections import defaultdict
 from typing import Optional, List, Dict, Any
 from urllib.parse import urlparse, parse_qs, unquote_plus
 import requests as http_req
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, HTTPException, BackgroundTasks, status
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
@@ -25,13 +32,16 @@ import ai_service as ai
 
 load_dotenv()
 
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin423").strip()
+SECRET_KEY = os.getenv("SECRET_KEY", "secret-super-key-change-me").strip()
+
 app = FastAPI(
     title="Google NFC Review System API",
-    description="High-performance backend powered by FastAPI & LangChain for NFC smart review cards.",
-    version="2.0.0",
+    description="High-performance backend powered by FastAPI & LangChain with Admin Authentication & Rate Limiting.",
+    version="2.1.0",
 )
 
-# ── CORS Middleware (Enables seamless Vercel & local connections) ─
+# ── CORS & Security Headers Middleware ────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -40,14 +50,90 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
 # Initialize DB on startup
 db.init_db()
 
 # Setup Templates for fallback/direct rendering
 templates = Jinja2Templates(directory="templates")
 
+# Bearer token security scheme
+security_scheme = HTTPBearer(auto_error=False)
+
+
+# ── Cryptographic Token Authentication ─────────────────────────
+
+def create_admin_token(secret: str, hours: int = 72) -> str:
+    """Generates an HMAC-SHA256 signed tamper-proof token with expiration."""
+    expires_at = int(time.time()) + (hours * 3600)
+    payload = f"admin:{expires_at}"
+    sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{payload}:{sig}"
+
+def verify_admin_token(token: str, secret: str) -> bool:
+    """Constant-time token validation against tampering and expiration."""
+    try:
+        parts = token.split(":")
+        if len(parts) != 3:
+            return False
+        role, expires_at_str, sig = parts
+        if role != "admin":
+            return False
+        expires_at = int(expires_at_str)
+        if time.time() > expires_at:
+            return False
+        payload = f"{role}:{expires_at_str}"
+        expected_sig = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        return secrets.compare_digest(sig, expected_sig)
+    except Exception:
+        return False
+
+def get_current_admin(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme)):
+    """FastAPI Dependency: verifies caller has valid admin bearer token."""
+    if not credentials or not credentials.credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Admin authentication required. Please log in.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    if not verify_admin_token(credentials.credentials, SECRET_KEY):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired admin session. Please log in again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return True
+
+
+# ── IP Rate Limiter (Protects AI Generation Endpoints) ─────────
+
+_rate_limits = defaultdict(list)
+
+def enforce_rate_limit(ip: str, max_requests: int = 5, window_seconds: int = 300):
+    """Allows max 5 AI review generations per IP in 5 minutes."""
+    now = time.time()
+    timestamps = [t for t in _rate_limits[ip] if now - t < window_seconds]
+    if len(timestamps) >= max_requests:
+        _rate_limits[ip] = timestamps
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many review generation requests. Please wait 5 minutes before generating another."
+        )
+    timestamps.append(now)
+    _rate_limits[ip] = timestamps
+
 
 # ── Pydantic Request Models ───────────────────────────────────
+
+class AdminLoginRequest(BaseModel):
+    password: str
 
 class SmartDetectRequest(BaseModel):
     url: Optional[str] = ""
@@ -163,21 +249,42 @@ def _bg_replenish_reviews(shop: dict):
         print(f"[LangChain-Replenish] Appended {len(new_reviews)} fresh reviews for {shop['card_id']}.")
 
 
-# ── Admin & Dashboard Endpoints ──────────────────────────────
+# ── Authentication Endpoints ─────────────────────────────────
+
+@app.post("/api/admin/login")
+def admin_login(req: AdminLoginRequest):
+    """Authenticates admin and returns a signed bearer token."""
+    input_pass = req.password.strip()
+    # Constant-time comparison against timing attacks
+    if not secrets.compare_digest(input_pass, ADMIN_PASSWORD):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect admin password."
+        )
+    token = create_admin_token(SECRET_KEY, hours=72)
+    return {"success": True, "token": token, "expires_in": 72 * 3600}
+
+@app.get("/api/admin/verify")
+def verify_admin_session(admin_auth: bool = Depends(get_current_admin)):
+    """Verifies if the current bearer token is active."""
+    return {"valid": True, "role": "admin"}
+
+
+# ── Admin Protected Endpoints ────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
 def index_page(request: Request):
-    """Directly serves Admin UI template if accessed directly on Render."""
+    """Serves Admin UI template."""
     return templates.TemplateResponse("admin.html", {"request": request})
 
 @app.get("/api/cards")
-def list_cards():
-    """Lists all store NFC cards with scan metrics."""
+def list_cards(admin_auth: bool = Depends(get_current_admin)):
+    """Lists all store NFC cards with scan metrics (Admin Only)."""
     return db.get_all_shops()
 
 @app.post("/api/cards", status_code=status.HTTP_201_CREATED)
-def create_card(req: CreateCardRequest, bg_tasks: BackgroundTasks):
-    """Creates a new NFC card and triggers LangChain pre-generation in background."""
+def create_card(req: CreateCardRequest, bg_tasks: BackgroundTasks, admin_auth: bool = Depends(get_current_admin)):
+    """Creates a new NFC card (Admin Only)."""
     data = req.model_dump()
     review_url = data.get("google_review_url", "").strip()
     place_id = extract_place_id(review_url) or data.get("place_id", "").strip()
@@ -237,7 +344,8 @@ def create_card(req: CreateCardRequest, bg_tasks: BackgroundTasks):
     return {"message": msg, "card_id": card_id}
 
 @app.put("/api/cards/{card_id}")
-def update_card(card_id: str, req: UpdateCardRequest, bg_tasks: BackgroundTasks):
+def update_card(card_id: str, req: UpdateCardRequest, bg_tasks: BackgroundTasks, admin_auth: bool = Depends(get_current_admin)):
+    """Updates store profile (Admin Only)."""
     data = req.model_dump()
     db.update_shop(
         card_id=card_id,
@@ -252,12 +360,14 @@ def update_card(card_id: str, req: UpdateCardRequest, bg_tasks: BackgroundTasks)
     return {"message": "Updated"}
 
 @app.delete("/api/cards/{card_id}")
-def delete_card(card_id: str):
+def delete_card(card_id: str, admin_auth: bool = Depends(get_current_admin)):
+    """Deletes store card (Admin Only)."""
     db.delete_shop(card_id)
     return {"message": "Deleted"}
 
 @app.post("/api/cards/{card_id}/toggle-status")
-def toggle_card_status(card_id: str, req: Optional[ToggleStatusRequest] = None):
+def toggle_card_status(card_id: str, req: Optional[ToggleStatusRequest] = None, admin_auth: bool = Depends(get_current_admin)):
+    """Toggles card between Live and Paused (Admin Only)."""
     is_active = req.is_active if req else None
     new_status = db.toggle_shop_status(card_id, is_active)
     if new_status is None:
@@ -265,19 +375,17 @@ def toggle_card_status(card_id: str, req: Optional[ToggleStatusRequest] = None):
     return {"success": True, "card_id": card_id, "is_active": new_status}
 
 @app.post("/api/cards/{card_id}/regenerate")
-def regenerate_reviews(card_id: str, bg_tasks: BackgroundTasks):
+def regenerate_reviews(card_id: str, bg_tasks: BackgroundTasks, admin_auth: bool = Depends(get_current_admin)):
+    """Forces LangChain regeneration of reviews (Admin Only)."""
     shop = db.get_shop_by_card_id(card_id)
     if not shop:
         raise HTTPException(status_code=404, detail="Card not found")
     bg_tasks.add_task(_bg_pre_generate_reviews, shop)
     return {"message": "Regeneration started in background via LangChain"}
 
-
-# ── AI Smart Detect ──────────────────────────────────────────
-
 @app.post("/api/smart-detect")
-def smart_detect(req: SmartDetectRequest):
-    """Resolves link and uses LangChain chain to enrich profile."""
+def smart_detect(req: SmartDetectRequest, admin_auth: bool = Depends(get_current_admin)):
+    """Enriches store profile using LangChain (Admin Only)."""
     url = (req.url or "").strip()
     shop_name = (req.shop_name or "").strip()
 
@@ -303,7 +411,7 @@ def smart_detect(req: SmartDetectRequest):
     }
 
 @app.post("/api/resolve-link")
-def resolve_link(req: SmartDetectRequest):
+def resolve_link(req: SmartDetectRequest, admin_auth: bool = Depends(get_current_admin)):
     url = (req.url or "").strip()
     if not url:
         raise HTTPException(status_code=400, detail="No URL provided")
@@ -315,10 +423,11 @@ def resolve_link(req: SmartDetectRequest):
     }
 
 
-# ── Customer NFC Review Experience Endpoints ────────────────
+# ── Public Customer Endpoints (NFC Card Taps) ────────────────
 
 @app.get("/r/{card_id}", response_class=HTMLResponse)
 def customer_page(card_id: str, request: Request):
+    """Direct fallback page when customer taps physical card."""
     shop = db.get_shop_by_card_id(card_id)
     if not shop:
         raise HTTPException(status_code=404, detail="Card not found")
@@ -337,6 +446,7 @@ def customer_page(card_id: str, request: Request):
 
 @app.get("/api/shop/{card_id}")
 def get_shop_info(card_id: str):
+    """Public store details for NFC customer review portal."""
     shop = db.get_shop_by_card_id(card_id)
     if not shop:
         raise HTTPException(status_code=404, detail="Card not found")
@@ -353,6 +463,7 @@ def card_status(card_id: str):
 @app.get("/api/reviews/{card_id}")
 @app.get("/api/fallback/{card_id}")
 def get_reviews(card_id: str):
+    """Public random 5 unused reviews for customer card swipe."""
     shop = db.get_shop_by_card_id(card_id)
     if not shop:
         raise HTTPException(status_code=404, detail="Card not found")
@@ -364,11 +475,13 @@ def get_reviews(card_id: str):
             "name": shop["shop_name"],
             "type": shop["shop_type"],
             "google_review_url": shop["google_review_url"],
+            "is_active": shop.get("is_active", True)
         }
     }
 
 @app.post("/api/reviews/{review_id}/use")
 def mark_review_used(review_id: int, req: UseReviewRequest, bg_tasks: BackgroundTasks):
+    """Marks review as used when clicked to post on Google."""
     shop = db.get_shop_by_card_id(req.card_id) if req.card_id else None
     shop_id = shop["id"] if shop else None
 
@@ -381,7 +494,11 @@ def mark_review_used(review_id: int, req: UseReviewRequest, bg_tasks: Background
     return {"success": True, **result}
 
 @app.post("/api/custom-review/{card_id}")
-def generate_custom_review(card_id: str, req: CustomReviewRequest):
+def generate_custom_review(card_id: str, req: CustomReviewRequest, request: Request):
+    """Public AI custom review generation with rate limit protection."""
+    client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown").split(",")[0].strip()
+    enforce_rate_limit(client_ip, max_requests=5, window_seconds=300)
+
     shop = db.get_shop_by_card_id(card_id)
     if not shop:
         raise HTTPException(status_code=404, detail="Card not found")
