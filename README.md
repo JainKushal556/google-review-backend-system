@@ -76,10 +76,10 @@ Open your browser at:
 ├── main.py              # Flask server, routing, and REST API endpoints
 ├── database.py          # Unified database layer (Supabase PostgreSQL / SQLite)
 ├── ai_service.py        # Groq AI review generation and natural language prompt logic
-├── scraper.py           # Google Maps link resolution and Place ID extraction
 ├── templates/
 │   ├── admin.html       # Executive White Theme admin dashboard
-│   ├── review.html      # Responsive customer review landing page
+│   ├── customer.html    # Touch-optimized customer review carousel landing page
+│   ├── processing.html  # Dynamic setup loading screen
 │   └── inactive.html    # Maintenance / service paused notice
 ├── requirements.txt     # Python package requirements
 ├── .env.example         # Example configuration file

@@ -1,15 +1,16 @@
-import os
 import json
+import os
+import re
 import threading
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import parse_qs, unquote_plus, urlparse
 
-from flask import Flask, request, jsonify, render_template, Response, abort
-from flask_cors import CORS
 from dotenv import load_dotenv
+from flask import Flask, Response, abort, jsonify, render_template, request
+from flask_cors import CORS
+import requests as http_req
 
-import database as db
 import ai_service as ai
-import scraper
+import database as db
 
 load_dotenv()
 
@@ -22,10 +23,6 @@ db.init_db()
 
 
 # ── Helpers ──────────────────────────────────────────────────
-
-import re
-import urllib.parse
-import requests as http_req
 
 def parse_google_url(url: str) -> dict:
     """
@@ -75,7 +72,7 @@ def parse_google_url(url: str) -> dict:
     m_name = re.search(r'/maps/place/([^/@?]+)', expanded_url)
     if m_name:
         raw_name = m_name.group(1)
-        name = urllib.parse.unquote_plus(raw_name).strip()
+        name = unquote_plus(raw_name).strip()
         name = re.sub(r'[\?#].*$', '', name).strip()
         if name.lower() in ["", "google maps", "maps"]:
             name = None
@@ -172,7 +169,7 @@ def auto_detect():
     place_id = data.get("place_id", "").strip()
     if not place_id:
         return jsonify({"error": "No Place ID"}), 400
-    review_url = build_review_url(place_id)
+    data["url"] = build_review_url(place_id)
     return smart_detect()
 
 

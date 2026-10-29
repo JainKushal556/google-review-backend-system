@@ -11,8 +11,6 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
 # Best fast & reliable model on Groq
 MODEL = "qwen/qwen3.8-27b"
 
-ASPECTS = ["general", "service", "ambience", "quality", "value"]
-
 ASPECT_LABELS = {
     "general":  "Overall Experience",
     "service":  "Service & Staff",
@@ -88,28 +86,6 @@ Respond ONLY with a valid JSON array, no markdown, no extra text:
 ]"""
 
 
-def generate_reviews_for_aspect(shop_name, shop_type, description, keywords, aspect):
-    """Blocking call — generate 4 reviews for one aspect. Returns list of dicts."""
-    try:
-        completion = client.chat.completions.create(
-            model=MODEL,
-            messages=[{"role": "user", "content": build_prompt(shop_name, shop_type, description, keywords, aspect)}],
-            temperature=0.85,
-            max_tokens=800,
-        )
-        text = completion.choices[0].message.content.strip()
-
-        # Strip markdown code fences if present
-        text = re.sub(r"```(?:json)?", "", text).strip().rstrip("`").strip()
-
-        match = re.search(r'\[.*\]', text, re.DOTALL)
-        if match:
-            return json.loads(match.group())
-    except Exception as e:
-        print(f"[AI] Error on aspect '{aspect}': {e}")
-    return []
-
-
 def generate_natural_reviews_batch(shop_name: str, shop_type: str, count: int = 10) -> list:
     """
     Generates authentic, casual, human 5-star Google reviews.
@@ -163,11 +139,6 @@ Respond ONLY with a valid JSON array of {count} strings, no markdown formatting:
         f"Honest pricing and very helpful attitude. Keep up the good work! 👍",
         f"Super happy with the outcome! Friendly behaviour and top-quality work."
     ]
-
-
-def generate_all_reviews(shop_name, shop_type, description, keywords):
-    """Generate reviews for ALL aspects — used during admin card setup (background)."""
-    return generate_natural_reviews_batch(shop_name, shop_type, count=10)
 
 
 def stream_reviews_for_aspect(shop_name, shop_type, description, keywords, aspect):
