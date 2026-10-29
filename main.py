@@ -14,6 +14,7 @@ import time
 import hmac
 import hashlib
 import secrets
+import traceback
 from collections import defaultdict
 from typing import Optional, List, Dict, Any
 from urllib.parse import urlparse, parse_qs, unquote_plus
@@ -57,6 +58,28 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
+
+# ── Error Logging Helper & Global Exception Handler ──────────
+
+def record_error(endpoint: str, error_type: str, message: str, tb: str = ""):
+    """Safely log error to database for Admin Notification."""
+    try:
+        db.log_error(endpoint=endpoint, error_type=error_type, message=message, traceback_str=tb)
+    except Exception as e:
+        print(f"[ErrorLogging] Failed to log error: {e}")
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    tb_str = traceback.format_exc()
+    err_type = exc.__class__.__name__
+    err_msg = str(exc)
+    endpoint = request.url.path
+    print(f"[UNHANDLED EXCEPTION] {endpoint}: {err_type} - {err_msg}")
+    record_error(endpoint=endpoint, error_type=err_type, message=err_msg, tb=tb_str)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal Server Error", "message": err_msg, "type": err_type}
+    )
 
 # Initialize DB on startup
 db.init_db()
@@ -225,26 +248,46 @@ def extract_place_id(url: str) -> Optional[str]:
 # ── Background Review Tasks (LangChain) ──────────────────────
 
 def _bg_pre_generate_reviews(shop: dict):
-    print(f"[LangChain-BG] Pre-generating 10 natural reviews for card: {shop['card_id']}")
-    reviews = ai.generate_natural_reviews_batch(
-        shop_name=shop["shop_name"],
-        shop_type=shop.get("shop_type", "Store"),
-        count=10
-    )
-    if reviews:
-        db.save_reviews(shop["id"], reviews)
-        print(f"[LangChain-BG] Saved {len(reviews)} natural reviews for {shop['card_id']}.")
+    try:
+        print(f"[LangChain-BG] Pre-generating 10 natural reviews for card: {shop['card_id']}")
+        reviews = ai.generate_natural_reviews_batch(
+            shop_name=shop["shop_name"],
+            shop_type=shop.get("shop_type", "Store"),
+            count=10
+        )
+        if reviews:
+            db.save_reviews(shop["id"], reviews)
+            print(f"[LangChain-BG] Saved {len(reviews)} natural reviews for {shop['card_id']}.")
+    except Exception as e:
+        tb_str = traceback.format_exc()
+        record_error(
+            endpoint=f"Background: /api/cards/{shop.get('card_id')}/generate",
+            error_type=e.__class__.__name__,
+            message=f"Failed to generate reviews for '{shop.get('shop_name')}': {str(e)}",
+            tb=tb_str
+        )
+        print(f"[LangChain-BG Error] {e}")
 
 def _bg_replenish_reviews(shop: dict):
-    print(f"[LangChain-Replenish] Generating 10 new natural reviews for {shop['card_id']}...")
-    new_reviews = ai.generate_natural_reviews_batch(
-        shop_name=shop["shop_name"],
-        shop_type=shop.get("shop_type", "Store"),
-        count=10
-    )
-    if new_reviews:
-        db.append_reviews(shop["id"], new_reviews)
-        print(f"[LangChain-Replenish] Appended {len(new_reviews)} fresh reviews for {shop['card_id']}.")
+    try:
+        print(f"[LangChain-Replenish] Generating 10 new natural reviews for {shop['card_id']}...")
+        new_reviews = ai.generate_natural_reviews_batch(
+            shop_name=shop["shop_name"],
+            shop_type=shop.get("shop_type", "Store"),
+            count=10
+        )
+        if new_reviews:
+            db.append_reviews(shop["id"], new_reviews)
+            print(f"[LangChain-Replenish] Appended {len(new_reviews)} fresh reviews for {shop['card_id']}.")
+    except Exception as e:
+        tb_str = traceback.format_exc()
+        record_error(
+            endpoint=f"Background: /api/cards/{shop.get('card_id')}/replenish",
+            error_type=e.__class__.__name__,
+            message=f"Failed to replenish reviews for '{shop.get('shop_name')}': {str(e)}",
+            tb=tb_str
+        )
+        print(f"[LangChain-Replenish Error] {e}")
 
 
 # ── Authentication Endpoints ─────────────────────────────────
@@ -421,6 +464,27 @@ def resolve_link(req: SmartDetectRequest, admin_auth: bool = Depends(get_current
     }
 
 
+# ── Admin Error Logging & Health Monitoring ──────────────────
+
+@app.get("/api/admin/errors")
+def get_system_errors(limit: int = 50, admin_auth: bool = Depends(get_current_admin)):
+    """Retrieve system error logs and unread count (Admin Only)."""
+    return db.get_errors(limit=limit)
+
+@app.post("/api/admin/errors/mark-read")
+def mark_system_errors_read(admin_auth: bool = Depends(get_current_admin)):
+    """Mark all system error logs as read (Admin Only)."""
+    success = db.mark_all_errors_read()
+    return {"success": success}
+
+@app.delete("/api/admin/errors")
+def clear_system_errors(admin_auth: bool = Depends(get_current_admin)):
+    """Clear all system error logs (Admin Only)."""
+    success = db.clear_all_errors()
+    return {"success": success}
+
+
+
 # ── Public Customer Endpoints (NFC Card Taps) ────────────────
 
 @app.get("/r/{card_id}")
@@ -511,22 +575,40 @@ def mark_review_used(review_id: int, req: UseReviewRequest, bg_tasks: Background
 def generate_custom_review(card_id: str, req: CustomReviewRequest, request: Request):
     """Public AI custom review generation with rate limit protection."""
     client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown").split(",")[0].strip()
-    enforce_rate_limit(client_ip, max_requests=5, window_seconds=300)
+    try:
+        enforce_rate_limit(client_ip, max_requests=5, window_seconds=300)
+    except HTTPException as he:
+        record_error(
+            endpoint=f"/api/custom-review/{card_id}",
+            error_type="RateLimitExceeded",
+            message=f"IP {client_ip} exceeded AI rate limit (5 attempts / 5 mins)."
+        )
+        raise he
 
     shop = db.get_shop_by_card_id(card_id)
     if not shop:
         raise HTTPException(status_code=404, detail="Card not found")
 
-    review_text = ai.generate_custom_review(
-        shop_name=shop["shop_name"],
-        shop_type=shop.get("shop_type", "Store"),
-        user_input=req.user_input or ""
-    )
-    return {
-        "review": review_text,
-        "shop_name": shop["shop_name"],
-        "google_review_url": shop["google_review_url"]
-    }
+    try:
+        review_text = ai.generate_custom_review(
+            shop_name=shop["shop_name"],
+            shop_type=shop.get("shop_type", "Store"),
+            user_input=req.user_input or ""
+        )
+        return {
+            "review": review_text,
+            "shop_name": shop["shop_name"],
+            "google_review_url": shop["google_review_url"]
+        }
+    except Exception as e:
+        tb_str = traceback.format_exc()
+        record_error(
+            endpoint=f"/api/custom-review/{card_id}",
+            error_type=e.__class__.__name__,
+            message=f"AI custom review generation failed for '{shop['shop_name']}': {str(e)}",
+            tb=tb_str
+        )
+        raise HTTPException(status_code=500, detail="AI review generation temporarily unavailable. Please try again.")
 
 @app.get("/api/stream/{card_id}")
 def stream_reviews(card_id: str, aspect: str = "general"):

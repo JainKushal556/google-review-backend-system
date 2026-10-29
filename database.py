@@ -82,6 +82,19 @@ def init_db():
         """)
         cur.execute("CREATE INDEX IF NOT EXISTS idx_scans_shop_id ON scans(shop_id);")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_scans_scanned_at ON scans(scanned_at);")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS error_logs (
+                id          SERIAL PRIMARY KEY,
+                endpoint    TEXT,
+                error_type  TEXT,
+                message     TEXT,
+                traceback   TEXT,
+                is_read     BOOLEAN DEFAULT FALSE,
+                created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_error_logs_created_at ON error_logs(created_at);")
+        cur.execute("CREATE INDEX IF NOT EXISTS idx_error_logs_is_read ON error_logs(is_read);")
     else:
         cur.execute("""
             CREATE TABLE IF NOT EXISTS shops (
@@ -128,6 +141,22 @@ def init_db():
         """)
         try:
             cur.execute("CREATE INDEX IF NOT EXISTS idx_scans_shop_id ON scans(shop_id);")
+        except Exception:
+            pass
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS error_logs (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                endpoint    TEXT,
+                error_type  TEXT,
+                message     TEXT,
+                traceback   TEXT,
+                is_read     BOOLEAN DEFAULT 0,
+                created_at  TEXT DEFAULT (datetime('now'))
+            );
+        """)
+        try:
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_error_logs_created_at ON error_logs(created_at);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_error_logs_is_read ON error_logs(is_read);")
         except Exception:
             pass
 
@@ -523,4 +552,98 @@ def has_reviews(shop_id):
     conn.close()
     count = row["count"] if isinstance(row, dict) and "count" in row else (row[0] if row else 0)
     return count > 0
+
+
+# ── System Error Logging ──────────────────────────────────────
+
+def log_error(endpoint: str, error_type: str, message: str, traceback_str: str = ""):
+    """Safely log an application or AI system error."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        if USE_POSTGRES:
+            cur.execute("""
+                INSERT INTO error_logs (endpoint, error_type, message, traceback, is_read)
+                VALUES (%s, %s, %s, %s, FALSE)
+            """, (endpoint, error_type, message, traceback_str))
+        else:
+            cur.execute("""
+                INSERT INTO error_logs (endpoint, error_type, message, traceback, is_read)
+                VALUES (?, ?, ?, ?, 0)
+            """, (endpoint, error_type, message, traceback_str))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[DB Error Logging Failed] {e}")
+
+
+def get_errors(limit: int = 50):
+    """Retrieve recent error logs and unread count."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+
+        # Count unread errors
+        count_q = "SELECT COUNT(*) FROM error_logs WHERE is_read IS FALSE" if USE_POSTGRES else "SELECT COUNT(*) FROM error_logs WHERE is_read = 0"
+        cur.execute(count_q)
+        cnt_row = cur.fetchone()
+        unread_count = cnt_row["count"] if isinstance(cnt_row, dict) and "count" in cnt_row else (cnt_row[0] if cnt_row else 0)
+
+        # Fetch logs
+        select_q = f"""
+            SELECT id, endpoint, error_type, message, traceback, is_read, created_at
+            FROM error_logs
+            ORDER BY id DESC
+            LIMIT {limit}
+        """
+        cur.execute(select_q)
+        rows = cur.fetchall()
+        conn.close()
+
+        errors = []
+        for r in rows:
+            errors.append({
+                "id": r["id"],
+                "endpoint": r["endpoint"],
+                "error_type": r["error_type"],
+                "message": r["message"],
+                "traceback": r["traceback"],
+                "is_read": bool(r["is_read"]),
+                "created_at": str(r["created_at"])
+            })
+
+        return {"errors": errors, "unread_count": unread_count}
+    except Exception as e:
+        print(f"[DB get_errors Error] {e}")
+        return {"errors": [], "unread_count": 0}
+
+
+def mark_all_errors_read():
+    """Mark all error logs as read."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        q = "UPDATE error_logs SET is_read = TRUE WHERE is_read IS FALSE" if USE_POSTGRES else "UPDATE error_logs SET is_read = 1 WHERE is_read = 0"
+        cur.execute(q)
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"[DB mark_all_errors_read Error] {e}")
+        return False
+
+
+def clear_all_errors():
+    """Delete all error logs."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM error_logs")
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"[DB clear_all_errors Error] {e}")
+        return False
+
 

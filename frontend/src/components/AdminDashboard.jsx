@@ -3,7 +3,7 @@ import { API_BASE } from '../config';
 import { 
   CreditCard, Search, Plus, ExternalLink, Copy, Check, 
   Trash2, RefreshCw, ArrowLeft, Store, Sparkles, AlertCircle, Play, Pause,
-  Lock, LogOut, ShieldCheck
+  Lock, LogOut, ShieldCheck, Bell, BellRing, AlertTriangle, ChevronDown, ChevronUp, X, Activity, ShieldAlert
 } from 'lucide-react';
 
 export default function AdminDashboard({ onOpenCard }) {
@@ -22,6 +22,13 @@ export default function AdminDashboard({ onOpenCard }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [toast, setToast] = useState('');
 
+  // System Error Logs & Notification states
+  const [errorLogs, setErrorLogs] = useState([]);
+  const [unreadErrors, setUnreadErrors] = useState(0);
+  const [errorDrawerOpen, setErrorDrawerOpen] = useState(false);
+  const [expandedErrorId, setExpandedErrorId] = useState(null);
+  const [loadingErrors, setLoadingErrors] = useState(false);
+
   // Form states
   const [cardId, setCardId] = useState('');
   const [reviewUrl, setReviewUrl] = useState('');
@@ -36,6 +43,17 @@ export default function AdminDashboard({ onOpenCard }) {
     verifySession();
   }, []);
 
+  // Poll errors periodically when authenticated
+  useEffect(() => {
+    if (isAuthenticated && token) {
+      loadErrorLogs(token);
+      const timer = setInterval(() => {
+        loadErrorLogs(token);
+      }, 20000); // 20s live check
+      return () => clearInterval(timer);
+    }
+  }, [isAuthenticated, token]);
+
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(''), 3000);
@@ -45,6 +63,58 @@ export default function AdminDashboard({ onOpenCard }) {
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${token}`
   });
+
+  const loadErrorLogs = async (activeToken = token) => {
+    if (!activeToken) return;
+    try {
+      setLoadingErrors(true);
+      const res = await fetch(`${API_BASE}/api/admin/errors?limit=50`, {
+        headers: { 'Authorization': `Bearer ${activeToken}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setErrorLogs(data.errors || []);
+        setUnreadErrors(data.unread_count || 0);
+      }
+    } catch (err) {
+      console.error('Error fetching logs', err);
+    } finally {
+      setLoadingErrors(false);
+    }
+  };
+
+  const markAllErrorsRead = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/errors/mark-read`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        setUnreadErrors(0);
+        setErrorLogs(prev => prev.map(e => ({ ...e, is_read: true })));
+        showToast('✅ All alerts marked as read');
+      }
+    } catch (err) {
+      showToast('Failed to mark alerts as read');
+    }
+  };
+
+  const clearAllErrors = async () => {
+    if (!window.confirm('Delete all error history from the database?')) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/errors`, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+      if (res.ok) {
+        setErrorLogs([]);
+        setUnreadErrors(0);
+        showToast('🗑️ Error logs cleared');
+      }
+    } catch (err) {
+      showToast('Failed to clear error logs');
+    }
+  };
 
   const verifySession = async () => {
     const savedToken = localStorage.getItem('nfc_admin_token');
@@ -110,6 +180,9 @@ export default function AdminDashboard({ onOpenCard }) {
     setIsAuthenticated(false);
     setCards([]);
     setSelectedCard(null);
+    setErrorLogs([]);
+    setUnreadErrors(0);
+    setErrorDrawerOpen(false);
   };
 
   const loadCards = async (activeToken = token) => {
@@ -331,6 +404,22 @@ export default function AdminDashboard({ onOpenCard }) {
           <div className="nav-link active">
             <Store size={18} /> Store Directory
           </div>
+          <div 
+            className={`nav-link ${errorDrawerOpen ? 'active' : ''}`}
+            onClick={() => setErrorDrawerOpen(true)}
+            style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+          >
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {unreadErrors > 0 ? <BellRing size={18} color="#dc2626" /> : <Bell size={18} />} System Alerts
+            </span>
+            {unreadErrors > 0 ? (
+              <span style={{ background: '#dc2626', color: '#fff', fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 999 }}>
+                {unreadErrors}
+              </span>
+            ) : (
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }} title="All systems normal" />
+            )}
+          </div>
         </nav>
 
         {/* Bottom Logout */}
@@ -355,6 +444,19 @@ export default function AdminDashboard({ onOpenCard }) {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          <button 
+            className="btn-secondary" 
+            style={{ padding: '8px 10px', position: 'relative' }} 
+            onClick={() => setErrorDrawerOpen(true)}
+            title="System Alerts"
+          >
+            {unreadErrors > 0 ? <BellRing size={16} color="#dc2626" /> : <Bell size={16} />}
+            {unreadErrors > 0 && (
+              <span style={{ position: 'absolute', top: -3, right: -3, background: '#dc2626', color: '#fff', fontSize: 10, fontWeight: 800, width: 16, height: 16, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {unreadErrors}
+              </span>
+            )}
+          </button>
           <button className="btn-primary" style={{ padding: '8px 12px', fontSize: 13 }} onClick={() => setModalOpen(true)}>
             <Plus size={16} /> Add
           </button>
@@ -443,9 +545,27 @@ export default function AdminDashboard({ onOpenCard }) {
                 <h1 className="page-title">Google NFC Review Cards</h1>
                 <p className="page-sub">FastAPI & LangChain Infrastructure for smart customer feedback.</p>
               </div>
-              <button className="btn-primary" onClick={() => setModalOpen(true)}>
-                <Plus size={18} /> Add New Card
-              </button>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button 
+                  className="btn-secondary" 
+                  onClick={() => setErrorDrawerOpen(true)}
+                  style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px' }}
+                  title="System Health & Error Notifications"
+                >
+                  {unreadErrors > 0 ? <BellRing size={17} color="#dc2626" /> : <Bell size={17} />}
+                  <span style={{ fontWeight: 700, fontSize: 13 }}>System Alerts</span>
+                  {unreadErrors > 0 ? (
+                    <span style={{ background: '#dc2626', color: '#fff', fontSize: 11, fontWeight: 800, minWidth: 20, height: 20, borderRadius: 10, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>
+                      {unreadErrors}
+                    </span>
+                  ) : (
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }} title="Operational" />
+                  )}
+                </button>
+                <button className="btn-primary" onClick={() => setModalOpen(true)}>
+                  <Plus size={18} /> Add New Card
+                </button>
+              </div>
             </div>
 
             {/* Metrics */}
@@ -596,6 +716,196 @@ export default function AdminDashboard({ onOpenCard }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── System Alerts & Error Logs Drawer Modal ── */}
+      {errorDrawerOpen && (
+        <div className="modal-overlay" onClick={() => setErrorDrawerOpen(false)}>
+          <div 
+            className="modal" 
+            style={{ maxWidth: 680, width: '100%', maxHeight: '88vh', display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Drawer Header */}
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <ShieldAlert size={20} color={unreadErrors > 0 ? '#dc2626' : '#16a34a'} />
+                  <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-heading)' }}>
+                    System Health & Error Logs
+                  </h2>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, marginTop: 4 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: unreadErrors > 0 ? '#dc2626' : '#16a34a' }} />
+                  <span style={{ color: unreadErrors > 0 ? '#b91c1c' : '#15803d', fontWeight: 600 }}>
+                    {unreadErrors > 0 ? `${unreadErrors} Unresolved Alert(s)` : 'All systems operational'}
+                  </span>
+                  <span style={{ color: 'var(--text-muted)' }}>• Live auto-monitoring</span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {errorLogs.length > 0 && (
+                  <>
+                    <button 
+                      className="btn-secondary" 
+                      style={{ padding: '6px 10px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+                      onClick={markAllErrorsRead}
+                      title="Mark all as read"
+                    >
+                      <Check size={14} /> Mark Read
+                    </button>
+                    <button 
+                      className="btn-secondary" 
+                      style={{ padding: '6px 10px', fontSize: 12, color: '#dc2626', display: 'flex', alignItems: 'center', gap: 4 }}
+                      onClick={clearAllErrors}
+                      title="Clear logs"
+                    >
+                      <Trash2 size={14} /> Clear
+                    </button>
+                  </>
+                )}
+                <button 
+                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 6, borderRadius: 8, color: 'var(--text-sub)' }}
+                  onClick={() => setErrorDrawerOpen(false)}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            {/* Drawer Body */}
+            <div style={{ padding: 24, overflowY: 'auto', flex: 1, background: '#f8fafc' }}>
+              {errorLogs.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '48px 20px', background: '#fff', borderRadius: 16, border: '1px solid #e2e8f0' }}>
+                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: '#f0fdf4', color: '#16a34a', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                    <ShieldCheck size={28} />
+                  </div>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>
+                    No System Errors Detected
+                  </h3>
+                  <p style={{ fontSize: 13, color: '#64748b', maxWidth: 400, margin: '0 auto' }}>
+                    FastAPI endpoints, LangChain Groq AI pipelines, and database transactions are performing smoothly with zero exceptions.
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {errorLogs.map(err => {
+                    const isExpanded = expandedErrorId === err.id;
+                    return (
+                      <div 
+                        key={err.id}
+                        style={{
+                          background: '#fff',
+                          border: `1px solid ${!err.is_read ? '#fecaca' : '#e2e8f0'}`,
+                          borderLeft: `4px solid ${!err.is_read ? '#dc2626' : '#94a3b8'}`,
+                          borderRadius: 12,
+                          padding: 16,
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+                        }}
+                      >
+                        {/* Meta Top Line */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ 
+                              background: !err.is_read ? '#fee2e2' : '#f1f5f9', 
+                              color: !err.is_read ? '#991b1b' : '#475569',
+                              fontSize: 11, 
+                              fontWeight: 800, 
+                              padding: '2px 8px', 
+                              borderRadius: 6 
+                            }}>
+                              {err.error_type || 'Error'}
+                            </span>
+                            <span style={{ fontFamily: 'monospace', fontSize: 11.5, color: '#0284c7', background: '#f0f9ff', padding: '2px 8px', borderRadius: 6 }}>
+                              {err.endpoint || 'General'}
+                            </span>
+                            {!err.is_read && (
+                              <span style={{ background: '#dc2626', color: '#fff', fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4 }}>
+                                NEW
+                              </span>
+                            )}
+                          </div>
+                          <span style={{ fontSize: 11, color: '#94a3b8' }}>
+                            {new Date(err.created_at).toLocaleString()}
+                          </span>
+                        </div>
+
+                        {/* Error Message */}
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', lineHeight: 1.4, wordBreak: 'break-word' }}>
+                          {err.message}
+                        </div>
+
+                        {/* Traceback Accordion */}
+                        {err.traceback && (
+                          <div style={{ marginTop: 10 }}>
+                            <button
+                              onClick={() => setExpandedErrorId(isExpanded ? null : err.id)}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                border: 'none',
+                                background: 'transparent',
+                                color: '#1a73e8',
+                                fontSize: 11.5,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                padding: 0
+                              }}
+                            >
+                              {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                              {isExpanded ? 'Hide Traceback' : 'View Technical Stack Trace'}
+                            </button>
+
+                            {isExpanded && (
+                              <div style={{ marginTop: 8, position: 'relative' }}>
+                                <pre style={{
+                                  background: '#0f172a',
+                                  color: '#e2e8f0',
+                                  fontSize: 11,
+                                  fontFamily: 'monospace',
+                                  padding: 12,
+                                  borderRadius: 8,
+                                  overflowX: 'auto',
+                                  maxHeight: 200,
+                                  lineHeight: 1.4
+                                }}>
+                                  {err.traceback}
+                                </pre>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(err.traceback);
+                                    showToast('📋 Stack trace copied to clipboard');
+                                  }}
+                                  style={{
+                                    position: 'absolute',
+                                    top: 8,
+                                    right: 8,
+                                    background: 'rgba(255,255,255,0.15)',
+                                    color: '#fff',
+                                    border: 'none',
+                                    fontSize: 10,
+                                    fontWeight: 700,
+                                    padding: '4px 8px',
+                                    borderRadius: 4,
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  Copy
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
