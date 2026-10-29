@@ -1,0 +1,2633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Google Review Cards — Admin Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+
+<style>
+:root {
+  --google-blue: #1a73e8;
+  --google-blue-hover: #1557b0;
+  --google-red: #ea4335;
+  --google-yellow: #fbbc04;
+  --google-green: #34a853;
+  --bg-page: #f8fafc;
+  --surface: #ffffff;
+  --surface-alt: #f1f5f9;
+  --surface-subtle: #f8fafc;
+  --border: #e2e8f0;
+  --border-focus: #1a73e8;
+  --border-subtle: #edf2f7;
+  --text-heading: #0f172a;
+  --text-body: #334155;
+  --text-sub: #64748b;
+  --text-muted: #94a3b8;
+  --radius-xl: 20px;
+  --radius-lg: 16px;
+  --radius-md: 10px;
+  --radius-sm: 8px;
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.05), 0 1px 2px rgba(15, 23, 42, 0.03);
+  --shadow-md: 0 4px 14px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 12px 28px rgba(15, 23, 42, 0.08), 0 4px 8px rgba(15, 23, 42, 0.04);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+  background: var(--bg-page);
+  color: var(--text-body);
+  min-height: 100vh;
+  overflow-x: hidden;
+  line-height: 1.5;
+}
+
+/* ── Google 4-Color Accent Bar ── */
+.google-accent-bar {
+  height: 4px;
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1000;
+  background: linear-gradient(90deg, 
+    var(--google-blue) 0% 25%, 
+    var(--google-red) 25% 50%, 
+    var(--google-yellow) 50% 75%, 
+    var(--google-green) 75% 100%
+  );
+}
+
+/* ── Desktop Sidebar (White Theme) ── */
+.sidebar {
+  position: fixed;
+  top: 4px;
+  left: 0;
+  width: 250px;
+  height: calc(100vh - 4px);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 24px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 100;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  text-decoration: none;
+  padding: 4px;
+}
+.logo-icon {
+  width: 40px;
+  height: 40px;
+  background: #f0f7ff;
+  border: 1px solid #dbeafe;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.logo-icon svg {
+  width: 22px;
+  height: 22px;
+}
+.logo-text {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-heading);
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+}
+.logo-text span {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--google-blue);
+  display: block;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: var(--radius-md);
+  color: var(--text-sub);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+  user-select: none;
+}
+.nav-item:hover {
+  background: var(--surface-alt);
+  color: var(--text-heading);
+}
+.nav-item.active {
+  background: #eff6ff;
+  color: var(--google-blue);
+  font-weight: 700;
+}
+
+/* ── Mobile Top Bar (Hidden on Desktop) ── */
+.mobile-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 4px;
+  z-index: 90;
+  box-shadow: var(--shadow-sm);
+}
+.mobile-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mobile-logo svg {
+  width: 24px;
+  height: 24px;
+}
+.mobile-logo-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-heading);
+}
+
+/* ── Main Layout ── */
+.main {
+  margin-left: 250px;
+  padding: 32px 36px 60px;
+  min-height: 100vh;
+  max-width: 1240px;
+}
+
+/* ── Header Row ── */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  gap: 12px;
+}
+.page-title {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--text-heading);
+}
+.page-title span {
+  color: var(--google-blue);
+}
+.page-sub {
+  font-size: 13.5px;
+  color: var(--text-sub);
+  margin-top: 3px;
+}
+
+/* ── Stats Overview ── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 28px;
+}
+.stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: var(--shadow-sm);
+  transition: transform .2s, box-shadow .2s;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.stat-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--surface-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  flex-shrink: 0;
+}
+.stat-value {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-heading);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.stat-label {
+  font-size: 12px;
+  color: var(--text-sub);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* ── Sectioning & Toolbar ── */
+.toolbar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.filter-pills-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.filter-pill {
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-sub);
+  transition: all .2s;
+  box-shadow: var(--shadow-sm);
+}
+.filter-pill:hover {
+  background: var(--surface-alt);
+  color: var(--text-heading);
+}
+.filter-pill.active {
+  background: var(--google-blue);
+  color: #fff;
+  border-color: var(--google-blue);
+  box-shadow: 0 4px 12px rgba(26, 115, 232, 0.25);
+}
+
+.section-title-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.section-title-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-heading {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text-heading);
+  letter-spacing: -0.3px;
+}
+.section-badge {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--google-blue);
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+.section-tip {
+  font-size: 12.5px;
+  color: var(--text-sub);
+}
+
+/* ── FIRST VIEW: NFC Smart Cards Grid (Crisp White Theme) ── */
+.cards-showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+.nfc-smart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all .25s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.nfc-smart-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #4285F4, #34A853, #FBBC05, #EA4335);
+}
+.nfc-smart-card:hover {
+  transform: translateY(-4px);
+  border-color: #93c5fd;
+  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(59, 130, 246, 0.15);
+}
+.nfc-smart-card:active {
+  transform: scale(0.99);
+}
+.nfc-smart-card.is-paused {
+  opacity: 0.9;
+  border-color: #fca5a5;
+  background: #fafafa;
+}
+.nfc-smart-card.is-paused::before {
+  background: #ef4444;
+}
+
+/* Smart Card Header */
+.smart-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 10px;
+}
+.smart-card-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #f0f7ff;
+  border: 1px solid #bfdbfe;
+  padding: 5px 12px;
+  border-radius: 9px;
+  max-width: calc(100% - 90px);
+}
+.chip-nfc-icon {
+  width: 15px;
+  height: 15px;
+  color: var(--google-blue);
+  flex-shrink: 0;
+}
+.chip-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.chip-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 800;
+  color: #1d4ed8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.smart-status-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.smart-status-badge.active {
+  background: #ecfdf5;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+.smart-status-badge.inactive {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.smart-status-badge.active .pulse-dot {
+  animation: pulseGlow 2s infinite;
+}
+@keyframes pulseGlow {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.5; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Smart Card Body */
+.smart-card-body {
+  margin-bottom: 20px;
+}
+.smart-shop-name {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-heading);
+  letter-spacing: -0.4px;
+  line-height: 1.28;
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.smart-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.smart-type-tag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #dbeafe;
+  padding: 2px 9px;
+  border-radius: 6px;
+}
+.smart-date-text {
+  font-size: 11.5px;
+  color: var(--text-sub);
+}
+
+/* Smart Card Footer */
+.smart-card-foot {
+  border-top: 1px solid #f1f5f9;
+  padding-top: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.smart-quick-metrics {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.smart-metric-item {
+  display: flex;
+  flex-direction: column;
+}
+.smart-metric-val {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text-heading);
+  line-height: 1;
+}
+.smart-metric-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-sub);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+.smart-metric-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--border);
+}
+.smart-open-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--google-blue);
+  background: #eff6ff;
+  padding: 6px 14px;
+  border-radius: 20px;
+  transition: all .2s;
+}
+.nfc-smart-card:hover .smart-open-action {
+  background: var(--google-blue);
+  color: #fff;
+}
+
+/* ── DEDICATED CARD DETAILS PAGE (White Theme) ── */
+.detail-page-wrap {
+  animation: fadeIn .2s ease-out;
+  touch-action: pan-y;
+}
+@keyframes fadeIn { 
+  from { opacity: 0; transform: translateY(6px); } 
+  to { opacity: 1; transform: translateY(0); } 
+}
+
+.detail-nav-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-heading);
+  padding: 10px 18px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .2s;
+  box-shadow: var(--shadow-sm);
+}
+.btn-back:hover {
+  background: var(--surface-alt);
+  border-color: #cbd5e1;
+}
+.detail-breadcrumb {
+  font-size: 13px;
+  color: var(--text-sub);
+  font-weight: 600;
+}
+.detail-breadcrumb span {
+  color: var(--text-heading);
+  font-weight: 800;
+}
+
+/* ── Master Status Control Banner ── */
+.master-status-card {
+  border-radius: var(--radius-lg);
+  padding: 22px 26px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  margin-bottom: 22px;
+  border: 1px solid transparent;
+  transition: all .25s;
+}
+.master-status-card.is-live {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+  border-color: #86efac;
+  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.08);
+}
+.master-status-card.is-paused {
+  background: linear-gradient(135deg, #fef2f2 0%, #fff1f2 100%);
+  border-color: #fca5a5;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.08);
+}
+.status-info-col {
+  flex: 1;
+}
+.status-top-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+.is-live .status-top-tag { color: #15803d; }
+.is-paused .status-top-tag { color: #b91c1c; }
+.status-headline-text {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 5px;
+  letter-spacing: -0.3px;
+}
+.is-live .status-headline-text { color: #14532d; }
+.is-paused .status-headline-text { color: #7f1d1d; }
+.status-hint-text {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #475569;
+}
+.master-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 13px 24px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 800;
+  cursor: pointer;
+  border: none;
+  transition: all .2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+}
+.master-toggle-btn.btn-pause {
+  background: #ffffff;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+.master-toggle-btn.btn-pause:hover {
+  background: #ef4444;
+  color: #fff;
+  border-color: #ef4444;
+}
+.master-toggle-btn.btn-activate {
+  background: #ffffff;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+.master-toggle-btn.btn-activate:hover {
+  background: #22c55e;
+  color: #fff;
+  border-color: #22c55e;
+}
+
+/* ── Detail Content Section Cards ── */
+.detail-section-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.detail-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.detail-section-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text-heading);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.stat-badge-hint {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--google-blue);
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+.detail-hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.detail-id-chip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.detail-id-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: #1d4ed8;
+  background: #f0f7ff;
+  border: 1px solid #bfdbfe;
+  padding: 5px 12px;
+  border-radius: 8px;
+  letter-spacing: 0.5px;
+}
+.detail-shop-title {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text-heading);
+  letter-spacing: -0.5px;
+  margin-bottom: 8px;
+}
+.detail-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--text-sub);
+  flex-wrap: wrap;
+}
+.shop-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 700;
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #dbeafe;
+}
+.detail-hero-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.detail-desc-box {
+  background: var(--surface-alt);
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: 13.5px;
+  color: var(--text-body);
+  line-height: 1.55;
+  border: 1px solid var(--border);
+  margin-top: 14px;
+}
+.detail-keywords-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 10px;
+}
+.meta-tag {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 16px;
+}
+
+/* ── Scan Analytics Grid ── */
+.detail-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.detail-stat-tile {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 14px;
+  text-align: center;
+}
+.detail-stat-tile .stat-num {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-heading);
+  line-height: 1.1;
+  margin-bottom: 5px;
+}
+.detail-stat-tile .stat-lbl {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-sub);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.detail-stat-tile.highlight .stat-num {
+  color: #16a34a;
+}
+
+/* ── Detail Link Rows ── */
+.detail-link-box {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 14px;
+}
+.detail-link-box:last-child {
+  margin-bottom: 0;
+}
+.detail-link-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-heading);
+  margin-bottom: 8px;
+  display: block;
+}
+.detail-link-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.detail-link-input {
+  flex: 1;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #1d4ed8;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  outline: none;
+  font-weight: 600;
+}
+.detail-link-input:focus {
+  border-color: var(--google-blue);
+}
+
+/* ── Search Bar ── */
+.search-wrap {
+  position: relative;
+  margin-bottom: 22px;
+}
+.search-input {
+  width: 100%;
+  padding: 14px 18px 14px 44px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-heading);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  outline: none;
+  transition: all .2s;
+  box-shadow: var(--shadow-sm);
+}
+.search-input:focus {
+  border-color: var(--google-blue);
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.15);
+}
+.search-icon {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 15px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.search-count-badge {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--google-blue);
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  padding: 3px 9px;
+  border-radius: 12px;
+}
+
+/* ── Primary & Secondary Buttons ── */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: 12px;
+  border: none;
+  background: var(--google-blue);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .2s;
+  box-shadow: 0 4px 12px rgba(26, 115, 232, 0.25);
+}
+.btn-primary:hover {
+  background: var(--google-blue-hover);
+  box-shadow: 0 6px 16px rgba(26, 115, 232, 0.35);
+}
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-heading);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+  box-shadow: var(--shadow-sm);
+}
+.btn-secondary:hover {
+  background: var(--surface-alt);
+  border-color: #cbd5e1;
+}
+.btn-secondary.danger {
+  background: #fff1f2;
+  border-color: #fecaca;
+  color: #e11d48;
+}
+.btn-secondary.danger:hover {
+  background: #e11d48;
+  color: #fff;
+  border-color: #e11d48;
+}
+
+/* ── Modal (White Theme) ── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.modal-overlay.open {
+  display: flex;
+}
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 26px 24px;
+  width: 100%;
+  max-width: 540px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
+  position: relative;
+  color: var(--text-body);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.modal-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-heading);
+}
+.modal-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px;
+  transition: color .15s;
+}
+.modal-close-btn:hover {
+  color: var(--text-heading);
+}
+
+.modal-sub {
+  font-size: 13px;
+  color: var(--text-sub);
+  margin-bottom: 18px;
+  line-height: 1.45;
+}
+
+/* ── Mode Tabs ── */
+.tabs-wrap {
+  display: flex;
+  gap: 6px;
+  background: var(--surface-alt);
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  margin-bottom: 18px;
+}
+.tab-btn {
+  flex: 1;
+  padding: 9px 12px;
+  border-radius: 9px;
+  border: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  color: var(--text-sub);
+  background: transparent;
+}
+.tab-btn.active {
+  background: var(--surface);
+  color: var(--google-blue);
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Form Inputs ── */
+.form-group {
+  margin-bottom: 16px;
+}
+.form-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-heading);
+  margin-bottom: 6px;
+}
+.form-input, .form-select, .form-textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: var(--text-heading);
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  border-color: var(--google-blue);
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.12);
+}
+.form-textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+.form-hint {
+  font-size: 11.5px;
+  color: var(--text-sub);
+  margin-top: 5px;
+  line-height: 1.4;
+}
+
+/* ── AI Preview Card ── */
+.preview-card-box {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 18px;
+}
+.preview-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.preview-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--google-blue);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.preview-badge-type {
+  font-size: 11px;
+  background: var(--google-blue);
+  color: #fff;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-weight: 700;
+}
+
+/* ── Keywords ── */
+.keyword-input-wrap {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.keywords-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.kw-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 600;
+}
+.kw-remove {
+  cursor: pointer;
+  opacity: .7;
+  font-size: 14px;
+}
+.kw-remove:hover {
+  opacity: 1;
+}
+
+/* ── Toast ── */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(100px);
+  padding: 12px 22px;
+  border-radius: 30px;
+  font-size: 13.5px;
+  font-weight: 700;
+  z-index: 1000;
+  transition: transform .25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.2);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.toast.show {
+  transform: translateX(-50%) translateY(0);
+}
+.toast.success {
+  background: #14532d;
+  color: #dcfce7;
+  border: 1px solid #22c55e;
+}
+.toast.error {
+  background: #7f1d1d;
+  color: #fee2e2;
+  border: 1px solid #ef4444;
+}
+
+/* ── Empty State ── */
+.empty-state {
+  text-align: center;
+  padding: 50px 20px;
+  color: var(--text-sub);
+  grid-column: 1 / -1;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+}
+
+/* ══════════════════════════════════════════════════
+   MOBILE RESPONSIVENESS (< 768px)
+   ══════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .sidebar {
+    display: none;
+  }
+  .mobile-header {
+    display: flex;
+  }
+  .main {
+    margin-left: 0;
+    padding: 14px 14px 44px;
+  }
+  .page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .page-header button {
+    width: 100%;
+    justify-content: center;
+    padding: 12px;
+  }
+  .page-title {
+    font-size: 21px;
+  }
+  .page-sub {
+    font-size: 12px;
+  }
+
+  /* Stats on mobile */
+  .stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .stat-card {
+    padding: 10px 8px;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 4px;
+    border-radius: 12px;
+  }
+  .stat-icon-wrap {
+    width: 30px;
+    height: 30px;
+    font-size: 15px;
+    border-radius: 8px;
+  }
+  .stat-value {
+    font-size: 18px;
+  }
+  .stat-label {
+    font-size: 10px;
+  }
+
+  /* Toolbar & Filter pills on mobile */
+  .toolbar-section {
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .filter-pills-row {
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+    gap: 6px;
+  }
+  .filter-pill {
+    padding: 7px 13px;
+    font-size: 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .section-title-bar {
+    margin-bottom: 12px;
+  }
+  .section-heading {
+    font-size: 16px;
+  }
+
+  /* Cards grid on mobile - tactile cards */
+  .cards-showcase-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .nfc-smart-card {
+    padding: 18px 16px;
+    border-radius: 16px;
+  }
+  .smart-shop-name {
+    font-size: 18px;
+  }
+  .smart-card-chip {
+    max-width: calc(100% - 80px);
+  }
+
+  /* Master Status Card on mobile */
+  .master-status-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    padding: 18px 16px;
+    border-radius: 16px;
+  }
+  .master-toggle-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 13px;
+    font-size: 14.5px;
+  }
+
+  /* Detail Hero on mobile */
+  .detail-section-card {
+    padding: 18px 14px;
+    border-radius: 16px;
+    margin-bottom: 14px;
+  }
+  .detail-hero-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .detail-hero-actions {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+  }
+  .detail-hero-actions button {
+    flex: 1;
+    justify-content: center;
+    padding: 10px;
+    font-size: 13px;
+  }
+  .detail-shop-title {
+    font-size: 21px;
+  }
+
+  /* Detail Stats Grid on mobile: 2x2 Clean Grid */
+  .detail-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .detail-stat-tile {
+    padding: 12px 8px;
+    border-radius: 10px;
+  }
+  .detail-stat-tile .stat-num {
+    font-size: 20px;
+  }
+  .detail-stat-tile .stat-lbl {
+    font-size: 10px;
+  }
+
+  /* Link rows on mobile: Stacked for 1-thumb touch */
+  .detail-link-box {
+    padding: 14px;
+  }
+  .detail-link-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .detail-link-input {
+    width: 100%;
+    font-size: 12px;
+    padding: 10px 12px;
+  }
+  .detail-link-row button {
+    width: 100%;
+    justify-content: center;
+    padding: 12px;
+    font-size: 13px;
+  }
+
+  /* Modal on mobile */
+  .modal {
+    padding: 20px 16px;
+    border-radius: 16px;
+    max-height: 94vh;
+  }
+  .modal-title {
+    font-size: 17px;
+  }
+  .modal-footer {
+    flex-direction: column-reverse;
+    gap: 10px;
+  }
+  .modal-footer button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- Google 4-Color Accent Bar -->
+<div class="google-accent-bar"></div>
+
+<!-- Desktop Sidebar -->
+<aside class="sidebar">
+  <a href="/" class="logo">
+    <div class="logo-icon">
+      <!-- Google G SVG -->
+      <svg viewBox="0 0 24 24">
+        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+      </svg>
+    </div>
+    <div class="logo-text">
+      ReviewCard Admin
+      <span>Google NFC Portal</span>
+    </div>
+  </a>
+
+  <div class="nav-item active" onclick="closeCardDetails()">
+    <span>🃏</span> My NFC Cards
+  </div>
+  <div class="nav-item" onclick="showAddModal()">
+    <span>➕</span> Create New Card
+  </div>
+</aside>
+
+<!-- Mobile Sticky Top Bar -->
+<header class="mobile-header">
+  <div class="mobile-logo" onclick="closeCardDetails()" style="cursor:pointer">
+    <svg viewBox="0 0 24 24">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+    </svg>
+    <span class="mobile-logo-title">Review Cards</span>
+  </div>
+  <button class="btn-primary" onclick="showAddModal()" style="padding:8px 14px;font-size:13px;border-radius:10px;">
+    ➕ Add Card
+  </button>
+</header>
+
+<!-- Main Content -->
+<main class="main">
+  <!-- ══════════════════════════════════════════════════
+       VIEW 1: Clean First View (Only Card ID & Shop Name)
+       ══════════════════════════════════════════════════ -->
+  <div id="viewCardsList">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Google <span>NFC Review Cards</span></h1>
+        <p class="page-sub">Manage physical smart cards, monitor visitor scans, and automate Google Reviews.</p>
+      </div>
+      <button class="btn-primary" onclick="showAddModal()">
+        <span>➕</span> Add New Card
+      </button>
+    </div>
+
+    <!-- Stats Overview -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon-wrap">💳</div>
+        <div>
+          <div class="stat-value" id="totalCards">0</div>
+          <div class="stat-label">Total Store Cards</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon-wrap">⚡</div>
+        <div>
+          <div class="stat-value" id="activeCards">0</div>
+          <div class="stat-label">Active & Live</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon-wrap">📊</div>
+        <div>
+          <div class="stat-value" id="totalScansCounter" style="color:#16a34a;">0</div>
+          <div class="stat-label">Total Lifetime Scans</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section Toolbar: Search & Filter Tabs -->
+    <div class="toolbar-section">
+      <div class="search-wrap" style="margin-bottom:0;">
+        <span class="search-icon">🔍</span>
+        <input type="text" class="search-input" id="cardSearchInput"
+          placeholder="Search by Card ID or Store Name..."
+          oninput="handleSearchCards()" />
+        <span id="searchResultCount" class="search-count-badge" style="display:none;"></span>
+      </div>
+
+      <div class="filter-pills-row">
+        <button class="filter-pill active" id="filterAll" onclick="setFilter('all')">
+          All Stores (<span id="countAll">0</span>)
+        </button>
+        <button class="filter-pill" id="filterActive" onclick="setFilter('active')">
+          ● Live (<span id="countActive">0</span>)
+        </button>
+        <button class="filter-pill" id="filterInactive" onclick="setFilter('inactive')">
+          ○ Paused (<span id="countInactive">0</span>)
+        </button>
+      </div>
+    </div>
+
+    <!-- Section Title & Count -->
+    <div class="section-title-bar">
+      <div class="section-title-left">
+        <h2 class="section-heading">Store Cards</h2>
+        <span class="section-badge" id="cardsCountBadge">0 Total</span>
+      </div>
+      <div class="section-tip">Select any card to view detailed scan analytics, copy NFC link & manage status</div>
+    </div>
+
+    <!-- Cards Showcase Grid -->
+    <div class="cards-showcase-grid" id="cardsGrid">
+      <div class="empty-state" id="emptyState">
+        <div style="font-size:40px;margin-bottom:12px;">💳</div>
+        <div style="font-size:16px;font-weight:700;color:var(--text-heading);">No cards added yet</div>
+        <div style="font-size:13px;margin-top:4px;">Click "Add New Card" to connect your first physical NFC smart card.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════
+       VIEW 2: Dedicated Card Details Page
+       ══════════════════════════════════════════════════ -->
+  <div id="viewCardDetail" style="display:none;"></div>
+</main>
+
+<!-- ── Add / Edit Modal ── -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    
+    <!-- Header -->
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">⚡ Configure NFC Review Card</div>
+      <button class="modal-close-btn" onclick="closeModal()">✕</button>
+    </div>
+
+    <!-- ── FORM VIEW ── -->
+    <div id="modalFormView">
+      <div class="modal-sub">
+        Set up printed Card ID, business name, and Google Review destination link.
+      </div>
+
+      <!-- Mode Selector Tabs -->
+      <div class="tabs-wrap">
+        <button type="button" id="tabSimpleBtn" class="tab-btn active" onclick="switchInputMode('simple')">
+          ⚡ Standard Setup
+        </button>
+        <button type="button" id="tabJsonBtn" class="tab-btn" onclick="switchInputMode('json')">
+          📋 Paste JSON Profile
+        </button>
+      </div>
+
+      <!-- Field 1: Card / Shop ID (Physical ID printed on card) -->
+      <div class="form-group">
+        <label class="form-label">
+          <span>1. Printed Card ID <span style="color:#ef4444">*</span></span>
+          <span style="font-size:11px;font-weight:700;color:var(--google-blue);">Hardware Identifier</span>
+        </label>
+        <input class="form-input" id="f_card_id"
+          placeholder="e.g. CARD-01, SHOP-101, or brand-name"
+          style="font-family:'JetBrains Mono', monospace;font-weight:700;color:var(--google-blue);"
+          oninput="syncToPreviewCard()" />
+        <div class="form-hint">The unique ID printed on the physical NFC card (destination link will be /r/ID)</div>
+      </div>
+
+      <!-- Field 2: Google Link -->
+      <div class="form-group">
+        <label class="form-label">
+          <span>2. Google Review Destination URL <span style="color:#ef4444">*</span></span>
+          <span id="linkStatusBadge" style="font-size:11px;font-weight:600;"></span>
+        </label>
+        <input class="form-input" id="f_review_url"
+          placeholder="https://maps.app.goo.gl/... or direct Google review URL"
+          oninput="handleUrlInput()" onpaste="setTimeout(handleUrlInput, 60)" />
+        <div class="form-hint" id="placeIdHint">Paste the Google Maps Share link or Review link</div>
+      </div>
+
+      <!-- MODE A: Simple Input (Shop Name) -->
+      <div id="simpleInputSection">
+        <div class="form-group">
+          <label class="form-label">3. Business / Store Name <span style="color:#ef4444">*</span></label>
+          <input class="form-input" id="f_shop_name" placeholder="e.g. Dream Art Tattoo Studio"
+            oninput="handleShopNameInput()" onblur="handleShopNameBlur()" />
+          <div class="form-hint">AI will automatically detect the category and generate natural customer reviews</div>
+        </div>
+      </div>
+
+      <!-- MODE B: ChatGPT JSON Paste Section -->
+      <div id="jsonInputSection" style="display:none">
+        <div class="form-group">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <label class="form-label" style="margin-bottom:0">3. Paste JSON Profile</label>
+            <button type="button" onclick="copyMasterPrompt()" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;font-size:11px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer">
+              📋 Copy Prompt
+            </button>
+          </div>
+          <textarea class="form-textarea" id="f_ai_json" style="min-height:95px;font-family:monospace;font-size:12px;"
+            placeholder='{ "card_id": "...", "shop_name": "...", "shop_type": "...", "keywords": [...] }'
+            oninput="handleJsonPaste()" onpaste="setTimeout(handleJsonPaste, 50)"></textarea>
+          <div id="jsonStatusHint" class="form-hint">Paste JSON generated from ChatGPT to prefill store profile</div>
+        </div>
+      </div>
+
+
+      <!-- Live AI Preview Card (Light Theme) -->
+      <div id="aiPreviewCard" class="preview-card-box" style="display:none;background:var(--surface-subtle);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;margin-bottom:16px;">
+        <div class="preview-card-top" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div class="preview-title" style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:var(--text-heading);">
+            <span id="aiCardSpinner">⚡</span>
+            <span id="aiCardTitle">AI Retrieved Store Profile</span>
+          </div>
+          <span id="cardBadgeType" class="preview-badge-type" style="font-size:11px;font-weight:700;color:var(--google-blue);background:#eff6ff;padding:3px 8px;border-radius:6px;border:1px solid #bfdbfe;">Type</span>
+        </div>
+
+        <div style="margin-bottom:8px">
+          <div id="cardShopTitle" style="font-size:15px;font-weight:700;color:var(--text-heading);margin-bottom:3px">Shop Name</div>
+          <div id="cardDescText" style="font-size:12px;color:var(--text-sub);line-height:1.45">Description will appear here...</div>
+        </div>
+
+        <div style="margin-bottom:10px">
+          <div style="font-size:10.5px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px">Target Keywords:</div>
+          <div id="cardKeywordsList" style="display:flex;flex-wrap:wrap;gap:5px"></div>
+        </div>
+
+        <div style="background:var(--surface);padding:8px 12px;border-radius:8px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:11px;font-weight:600;color:var(--text-sub)">NFC URL:</span>
+          <span id="cardSlugText" style="font-size:12px;font-family:monospace;color:var(--google-blue);font-weight:700">/r/...</span>
+        </div>
+      </div>
+
+      <!-- Collapsible Advanced Section -->
+      <div style="margin-bottom:18px">
+        <button type="button" onclick="toggleAdvanced()" id="advToggleBtn"
+          style="background:transparent;border:none;color:var(--text-sub);font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;padding:4px 0">
+          <span>⚙️</span> <span id="advToggleText">Custom Adjustments (Optional)</span>
+          <span id="advArrow">▼</span>
+        </button>
+
+        <div id="advancedSection" style="display:none;margin-top:12px;padding:14px;background:var(--surface-subtle);border-radius:12px;border:1px solid var(--border);">
+
+          <div class="form-group">
+            <label class="form-label">Business Type</label>
+            <select class="form-select" id="f_shop_type" onchange="syncToPreviewCard()">
+              <option value="">Select type...</option>
+              <option>Tattoo Studio</option>
+              <option>Restaurant</option>
+              <option>Cafe</option>
+              <option>Hair Salon</option>
+              <option>Spa & Wellness</option>
+              <option>Clothing Store</option>
+              <option>Electronics Shop</option>
+              <option>Gym & Fitness</option>
+              <option>Photography Studio</option>
+              <option>Bakery</option>
+              <option>Medical Clinic</option>
+              <option>Dental Clinic</option>
+              <option>Hotel</option>
+              <option>Other</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Business Description</label>
+            <textarea class="form-textarea" id="f_description" placeholder="Brief description of the store and customer experience..." oninput="syncToPreviewCard()"></textarea>
+          </div>
+
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Review Keywords</label>
+            <div class="keyword-input-wrap">
+              <input class="form-input" id="kwInput" placeholder="Add keyword & press Enter" onkeydown="addKeyword(event)" style="flex:1"/>
+              <button class="btn-secondary" type="button" onclick="addKeyword({key:'Enter'})" style="padding:10px 14px;white-space:nowrap">Add</button>
+            </div>
+            <div class="keywords-list" id="keywordsList"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:14px;border-top:1px solid var(--border)">
+        <button class="btn-secondary" type="button" onclick="closeModal()">Cancel</button>
+        <button class="btn-primary" id="saveBtn" type="button" onclick="saveCard()">
+          <span>💾</span> <span>Save & Generate NFC Card</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ── SUCCESS & LINK SETUP VIEW ── -->
+    <div id="modalSuccessView" style="display:none;text-align:center;padding:12px 4px">
+      <div style="font-size:44px;margin-bottom:10px">🎉</div>
+      <div style="font-size:20px;font-weight:800;color:var(--text-heading);margin-bottom:4px">NFC Card Ready!</div>
+      <div id="successShopName" style="font-size:13.5px;color:var(--text-sub);margin-bottom:20px">Shop Name</div>
+
+      <div style="background:var(--surface-subtle);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:20px;text-align:left">
+        <div style="font-size:11px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">
+          📲 Physical NFC Card & QR Code Destination Link:
+        </div>
+        <div id="successCardUrl" style="font-size:13.5px;font-family:monospace;font-weight:700;color:var(--google-blue);word-break:break-all;user-select:all;background:var(--surface);padding:10px 12px;border-radius:8px;border:1px solid var(--border)">
+          http://...
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+        <button class="btn-primary" id="copySuccessBtn" onclick="copyCreatedLink()" style="width:100%;padding:13px 18px;">
+          📋 Copy NFC Link
+        </button>
+        <button class="btn-secondary" onclick="openCreatedLink()" style="width:100%;padding:12px 18px;">
+          🔗 Open Review Page (Live Test)
+        </button>
+      </div>
+
+      <button class="btn-secondary" onclick="closeModal()" style="border:none;background:transparent;color:var(--text-sub);font-size:12.5px;cursor:pointer">
+        Done / Return to Dashboard
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+let cards = [];
+let editMode = false;
+let editCardId = null;
+let keywords = [];
+let debounceTimer = null;
+let isDetecting = false;
+let latestCreatedUrl = '';
+let currentInputMode = 'simple';
+
+const MASTER_PROMPT_TEMPLATE = `You are an expert Google Review card assistant.
+I will give you a shop's details in simple words. 
+Your task is to analyze it and respond ONLY with a clean JSON object that matches my backend database format. No explanation, no markdown text outside JSON.
+
+JSON FORMAT REQUIRED:
+{
+  "shop_name": "Full official shop name",
+  "shop_type": "One exact category from: Restaurant, Cafe, Hair Salon, Tattoo Studio, Spa & Wellness, Clothing Store, Electronics Shop, Gym & Fitness, Photography Studio, Bakery, Medical Clinic, Dental Clinic, Hotel, Other",
+  "card_id": "clean-lowercase-slug-without-spaces-or-special-characters",
+  "description": "1 crisp, attractive sentence describing what this shop specializes in and their quality of service",
+  "keywords": [
+    "4 to 6 specific positive aspects customers praise"
+  ]
+}
+
+SHOP DETAILS:
+[Paste your shop name and what service they provide here]`;
+
+function switchInputMode(mode) {
+  currentInputMode = mode;
+  const tabSimple = document.getElementById('tabSimpleBtn');
+  const tabJson = document.getElementById('tabJsonBtn');
+  const simpleSec = document.getElementById('simpleInputSection');
+  const jsonSec = document.getElementById('jsonInputSection');
+
+  if (mode === 'json') {
+    tabJson.classList.add('active');
+    tabSimple.classList.remove('active');
+    simpleSec.style.display = 'none';
+    jsonSec.style.display = 'block';
+  } else {
+    tabSimple.classList.add('active');
+    tabJson.classList.remove('active');
+    simpleSec.style.display = 'block';
+    jsonSec.style.display = 'none';
+  }
+}
+
+function copyMasterPrompt() {
+  navigator.clipboard.writeText(MASTER_PROMPT_TEMPLATE).then(() => {
+    showToast('📋 ChatGPT Master Prompt Copied!', 'success');
+  });
+}
+
+function handleJsonPaste() {
+  const val = document.getElementById('f_ai_json').value.trim();
+  const hint = document.getElementById('jsonStatusHint');
+  if (!val) {
+    hint.textContent = 'JSON পেস্ট করার সাথে সাথে ডাটা লোড হয়ে যাবে';
+    hint.style.color = '';
+    return;
+  }
+
+  try {
+    const cleaned = val.replace(/```(?:json)?/gi, '').trim().replace(/`/g, '');
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('No JSON object found');
+    const parsed = JSON.parse(match[0]);
+
+    if (parsed.shop_name) document.getElementById('f_shop_name').value = parsed.shop_name;
+    if (parsed.card_id) document.getElementById('f_card_id').value = parsed.card_id;
+    if (parsed.description) document.getElementById('f_description').value = parsed.description;
+
+    if (parsed.shop_type) {
+      const sel = document.getElementById('f_shop_type');
+      for (let opt of sel.options) {
+        if (opt.value.toLowerCase() === parsed.shop_type.toLowerCase()) {
+          sel.value = opt.value; break;
+        }
+      }
+      if (!sel.value) sel.value = 'Other';
+    }
+
+    if (Array.isArray(parsed.keywords) && parsed.keywords.length > 0) {
+      keywords = [...parsed.keywords];
+      renderKeywords();
+    }
+
+    syncToPreviewCard();
+    hint.textContent = '✅ Valid JSON loaded: ' + (parsed.shop_name || 'Shop');
+    hint.style.color = '#4ade80';
+
+  } catch (err) {
+    hint.textContent = '⚠️ Valid JSON detect করা যায়নি।';
+    hint.style.color = '#f87171';
+  }
+}
+
+// ── Load cards ──────────────────────────────────────────────
+async function loadCards() {
+// ── Load cards ──────────────────────────────────────────────
+async function loadCards() {
+  try {
+    const res = await fetch('/api/cards');
+    cards = await res.json();
+    const searchInput = document.getElementById('cardSearchInput');
+    const query = searchInput ? searchInput.value.trim() : '';
+    if (query) {
+      handleSearchCards();
+    } else {
+      renderCards(cards);
+    }
+
+    // Deep linking: If page was opened or refreshed with #card=ID
+    const hash = window.location.hash;
+    if (hash.startsWith('#card=')) {
+      const cardId = decodeURIComponent(hash.replace('#card=', ''));
+      const found = cards.find(c => c.card_id === cardId);
+      if (found) {
+        openCardDetails(cardId, false);
+      }
+    }
+  } catch (err) {
+    console.error("Failed to load cards:", err);
+  }
+}
+
+let currentFilter = 'all';
+let currentDetailCardId = null;
+
+function setFilter(type) {
+  currentFilter = type;
+  document.querySelectorAll('.filter-pill').forEach(btn => btn.classList.remove('active'));
+  if (type === 'all') document.getElementById('filterAll')?.classList.add('active');
+  if (type === 'active') document.getElementById('filterActive')?.classList.add('active');
+  if (type === 'inactive') document.getElementById('filterInactive')?.classList.add('active');
+  handleSearchCards();
+}
+
+function handleSearchCards() {
+  const query = (document.getElementById('cardSearchInput').value || '').trim().toLowerCase();
+  const countBadge = document.getElementById('searchResultCount');
+
+  let filtered = cards;
+
+  // Apply status filter
+  if (currentFilter === 'active') {
+    filtered = filtered.filter(c => c.is_active !== false);
+  } else if (currentFilter === 'inactive') {
+    filtered = filtered.filter(c => c.is_active === false);
+  }
+
+  // Apply search query
+  if (query) {
+    filtered = filtered.filter(c =>
+      (c.card_id && c.card_id.toLowerCase().includes(query)) ||
+      (c.shop_name && c.shop_name.toLowerCase().includes(query)) ||
+      (c.shop_type && c.shop_type.toLowerCase().includes(query))
+    );
+    if (countBadge) {
+      countBadge.textContent = `${filtered.length} found`;
+      countBadge.style.display = 'inline-block';
+    }
+  } else {
+    if (countBadge) countBadge.style.display = 'none';
+  }
+
+  renderCards(filtered);
+}
+
+function renderCards(list = cards) {
+  const grid = document.getElementById('cardsGrid');
+  const empty = document.getElementById('emptyState');
+
+  // Stats Counters
+  const totalCount = cards.length;
+  const activeCount = cards.filter(c => c.is_active !== false).length;
+  const inactiveCount = totalCount - activeCount;
+  const totalScans = cards.reduce((acc, c) => acc + ((c.scan_stats && c.scan_stats.total) || 0), 0);
+
+  if (document.getElementById('totalCards')) document.getElementById('totalCards').textContent = totalCount;
+  if (document.getElementById('activeCards')) document.getElementById('activeCards').textContent = activeCount;
+  if (document.getElementById('totalScansCounter')) document.getElementById('totalScansCounter').textContent = totalScans.toLocaleString();
+  if (document.getElementById('countAll')) document.getElementById('countAll').textContent = totalCount;
+  if (document.getElementById('countActive')) document.getElementById('countActive').textContent = activeCount;
+  if (document.getElementById('countInactive')) document.getElementById('countInactive').textContent = inactiveCount;
+  if (document.getElementById('cardsCountBadge')) document.getElementById('cardsCountBadge').textContent = `${list.length} Store${list.length === 1 ? '' : 's'}`;
+
+  if (!list || list.length === 0) {
+    grid.innerHTML = '';
+    grid.appendChild(empty);
+    empty.style.display = 'block';
+    return;
+  }
+
+  empty.style.display = 'none';
+  grid.innerHTML = '';
+
+  list.forEach(shop => {
+    const isActive = shop.is_active !== false;
+    const stats = shop.scan_stats || { today: 0, month: 0, year: 0, total: 0 };
+
+    let createdDateStr = 'Recently';
+    if (shop.created_at) {
+      try {
+        const d = new Date(shop.created_at);
+        if (!isNaN(d.getTime())) {
+          createdDateStr = d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+      } catch (e) {}
+    }
+
+    const el = document.createElement('div');
+    el.className = `nfc-smart-card ${!isActive ? 'is-paused' : ''}`;
+    el.onclick = () => openCardDetails(shop.card_id, true);
+    el.innerHTML = `
+      <!-- Smart Card Header -->
+      <div class="smart-card-head">
+        <div class="smart-card-chip" title="Physical Card Identifier">
+          <svg class="chip-nfc-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+            <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+          </svg>
+          <span class="chip-lbl">ID:</span>
+          <span class="chip-val">${escapeHtml(shop.card_id)}</span>
+        </div>
+        <span class="smart-status-badge ${isActive ? 'active' : 'inactive'}">
+          <span class="pulse-dot"></span>
+          ${isActive ? 'Active' : 'Paused'}
+        </span>
+      </div>
+
+      <!-- Smart Card Body -->
+      <div class="smart-card-body">
+        <h3 class="smart-shop-name" title="${escapeHtml(shop.shop_name)}">${escapeHtml(shop.shop_name)}</h3>
+        <div class="smart-meta-row">
+          <span class="smart-type-tag">${escapeHtml(shop.shop_type || 'Store')}</span>
+          <span class="smart-date-text">📅 ${createdDateStr}</span>
+        </div>
+      </div>
+
+      <!-- Smart Card Footer -->
+      <div class="smart-card-foot">
+        <div class="smart-quick-metrics">
+          <div class="smart-metric-item">
+            <span class="smart-metric-val">${stats.today || 0}</span>
+            <span class="smart-metric-lbl">Today</span>
+          </div>
+          <div class="smart-metric-divider"></div>
+          <div class="smart-metric-item">
+            <span class="smart-metric-val">${stats.total || 0}</span>
+            <span class="smart-metric-lbl">Total Scans</span>
+          </div>
+        </div>
+        <div class="smart-open-action">
+          <span>Manage</span>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </div>
+      </div>
+    `;
+    grid.appendChild(el);
+  });
+}
+
+function openCardDetails(cardId, pushHistory = true) {
+  currentDetailCardId = cardId;
+  const shop = cards.find(c => c.card_id === cardId);
+  if (!shop) return;
+
+  // Manage browser history for smooth back gestures
+  if (pushHistory) {
+    history.pushState({ view: 'detail', cardId: cardId }, '', '#card=' + encodeURIComponent(cardId));
+  }
+
+  const stats = shop.scan_stats || { today: 0, month: 0, year: 0, total: 0 };
+  const isActive = shop.is_active !== false;
+  const nfcUrl = `${window.location.origin}/r/${shop.card_id}`;
+
+  let createdDateStr = 'Recently';
+  if (shop.created_at) {
+    try {
+      const d = new Date(shop.created_at);
+      if (!isNaN(d.getTime())) {
+        createdDateStr = d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
+      }
+    } catch (e) {}
+  }
+
+  const keywordsHtml = (shop.keywords && shop.keywords.length > 0)
+    ? shop.keywords.map(k => `<span class="meta-tag">✓ ${escapeHtml(k)}</span>`).join('')
+    : '';
+
+  const detailContainer = document.getElementById('viewCardDetail');
+  detailContainer.innerHTML = `
+    <div class="detail-page-wrap">
+      <!-- Top Navigation & Breadcrumb -->
+      <div class="detail-nav-bar">
+        <button class="btn-back" onclick="closeCardDetails()">
+          <span>←</span> Back to All Cards
+        </button>
+        <div class="detail-breadcrumb">
+          Store Directory / <span>${escapeHtml(shop.card_id)}</span>
+        </div>
+      </div>
+
+      <!-- Master Service Toggle Banner -->
+      <div class="master-status-card ${isActive ? 'is-live' : 'is-paused'}">
+        <div class="status-info-col">
+          <div class="status-top-tag">
+            <span class="pulse-dot"></span>
+            ${isActive ? 'NFC SERVICE ACTIVE & LIVE' : 'NFC SERVICE PAUSED & INACTIVE'}
+          </div>
+          <div class="status-headline-text">
+            ${isActive ? 'Accepting Customer NFC Taps & Reviews' : 'Customer Tap Link Temporarily Disabled'}
+          </div>
+          <div class="status-hint-text">
+            ${isActive 
+              ? 'When visitors scan or tap this NFC card, they are directed to the Google Review portal.' 
+              : 'When visitors scan this card, they will see the "Service Temporarily Paused" message.'}
+          </div>
+        </div>
+        <button class="master-toggle-btn ${isActive ? 'btn-pause' : 'btn-activate'}"
+          onclick="toggleStatus('${shop.card_id}')">
+          <span>${isActive ? '⏸️' : '▶️'}</span>
+          <span>${isActive ? 'Pause Service' : 'Activate Service'}</span>
+        </button>
+      </div>
+
+      <!-- Section 1: Store & Card Identification Profile -->
+      <div class="detail-section-card">
+        <div class="detail-section-header">
+          <div class="detail-section-title">
+            <span>🏪 Store Profile & Identification</span>
+          </div>
+          <div class="detail-hero-actions">
+            <button class="btn-secondary" onclick="showEditModal('${shop.card_id}')">✏️ Edit Store</button>
+            <button class="btn-secondary danger" onclick="deleteCard('${shop.card_id}')">🗑️ Delete</button>
+          </div>
+        </div>
+
+        <div class="detail-hero-top">
+          <div style="flex:1;">
+            <div class="detail-id-chip-row">
+              <span class="detail-id-badge">ID: ${escapeHtml(shop.card_id)}</span>
+              <button class="btn-secondary" style="padding:4px 10px;font-size:11px;" onclick="copyCardId('${shop.card_id}')">📋 Copy ID</button>
+            </div>
+            <h1 class="detail-shop-title">${escapeHtml(shop.shop_name)}</h1>
+            <div class="detail-meta-row">
+              <span class="shop-badge">${escapeHtml(shop.shop_type || 'Store')}</span>
+              <span>📅 Generated on ${createdDateStr}</span>
+              <span class="smart-status-badge ${isActive ? 'active' : 'inactive'}">
+                <span class="pulse-dot"></span>
+                ${isActive ? 'Active' : 'Paused'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-desc-box">
+          <div style="font-size:11px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:5px;">Business Description:</div>
+          ${escapeHtml(shop.description || 'No description provided')}
+        </div>
+
+        ${keywordsHtml ? `
+        <div style="margin-top:14px;">
+          <div style="font-size:11px;font-weight:700;color:var(--text-sub);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Target Keywords & Attributes:</div>
+          <div class="detail-keywords-wrap">${keywordsHtml}</div>
+        </div>` : ''}
+      </div>
+
+      <!-- Section 2: Real-time Scan Performance -->
+      <div class="detail-section-card">
+        <div class="detail-section-header">
+          <div class="detail-section-title">
+            <span>📊 Real-Time Visitor Scan Analytics</span>
+          </div>
+          <span class="stat-badge-hint">Live NFC & QR Tap Counts</span>
+        </div>
+
+        <div class="detail-stats-grid">
+          <div class="detail-stat-tile">
+            <div class="stat-num">${stats.today || 0}</div>
+            <div class="stat-lbl">Today's Scans</div>
+          </div>
+          <div class="detail-stat-tile">
+            <div class="stat-num">${stats.month || 0}</div>
+            <div class="stat-lbl">This Month</div>
+          </div>
+          <div class="detail-stat-tile">
+            <div class="stat-num">${stats.year || 0}</div>
+            <div class="stat-lbl">This Year</div>
+          </div>
+          <div class="detail-stat-tile highlight">
+            <div class="stat-num">${stats.total || 0}</div>
+            <div class="stat-lbl">Total Lifetime Scans</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 3: Physical NFC Tag & Review Links -->
+      <div class="detail-section-card">
+        <div class="detail-section-header">
+          <div class="detail-section-title">
+            <span>📲 Physical NFC Card Link & Google Review URL</span>
+          </div>
+        </div>
+
+        <div class="detail-link-box">
+          <label class="detail-link-label">1. Physical NFC Tag URL (Program this link onto your physical NFC chip using NFC Tools):</label>
+          <div class="detail-link-row">
+            <input type="text" class="detail-link-input" readonly value="${nfcUrl}" id="nfcUrlDetailInput" />
+            <button class="btn-primary" onclick="copyDetailLink('${nfcUrl}')">📋 Copy NFC Link</button>
+            <button class="btn-secondary" onclick="window.open('${nfcUrl}', '_blank')">🔗 Test Live Page</button>
+          </div>
+        </div>
+
+        <div class="detail-link-box">
+          <label class="detail-link-label">2. Direct Google Review Destination URL (Final Review Target):</label>
+          <div class="detail-link-row">
+            <input type="text" class="detail-link-input" readonly value="${escapeHtml(shop.google_review_url || '')}" />
+            <button class="btn-secondary" onclick="window.open('${escapeHtml(shop.google_review_url || '')}', '_blank')">↗ Open Review Link</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 4: AI Review Rotation Automation -->
+      <div class="detail-section-card">
+        <div class="detail-section-header">
+          <div class="detail-section-title">
+            <span>🤖 Automated Review Rotation Pool</span>
+          </div>
+          <button class="btn-secondary" onclick="regenerate('${shop.card_id}')">
+            🔄 Regenerate 10 Natural Reviews
+          </button>
+        </div>
+        <p style="font-size:13.5px;color:var(--text-sub);line-height:1.6;margin-bottom:0;">
+          • <strong>Instant Response:</strong> When customer taps NFC, 5 random unused reviews load directly from database with zero AI delay.<br/>
+          • <strong>Auto Usage Tracking:</strong> Whenever customer posts a review to Google, it is marked as used.<br/>
+          • <strong>Auto Refill:</strong> Once 10 reviews are exhausted, they are cleared and 10 fresh authentic reviews are generated.
+        </p>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('viewCardsList').style.display = 'none';
+  detailContainer.style.display = 'block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function closeCardDetails(fromHistory = false) {
+  currentDetailCardId = null;
+  document.getElementById('viewCardDetail').style.display = 'none';
+  document.getElementById('viewCardsList').style.display = 'block';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  // Update browser history so hardware back and address bar stay synced
+  if (!fromHistory && window.location.hash.startsWith('#card=')) {
+    history.back();
+  }
+}
+
+// ── Mobile Back & Browser History Navigation ─────────────────
+window.addEventListener('popstate', (e) => {
+  const hash = window.location.hash;
+  if (hash.startsWith('#card=')) {
+    const cardId = decodeURIComponent(hash.replace('#card=', ''));
+    if (cards && cards.length > 0) {
+      openCardDetails(cardId, false);
+    }
+  } else {
+    closeCardDetails(true);
+  }
+});
+
+// ── Native Mobile Edge Swipe-to-Go-Back ─────────────────────────
+let touchStartX = 0;
+let touchStartY = 0;
+let touchStartTime = 0;
+
+document.addEventListener('touchstart', (e) => {
+  if (!currentDetailCardId) return;
+  const touch = e.touches[0];
+  touchStartX = touch.clientX;
+  touchStartY = touch.clientY;
+  touchStartTime = Date.now();
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+  if (!currentDetailCardId) return;
+  const touch = e.changedTouches[0];
+  const deltaX = touch.clientX - touchStartX;
+  const deltaY = Math.abs(touch.clientY - touchStartY);
+  const elapsedTime = Date.now() - touchStartTime;
+
+  // Swipe right starting near left edge (< 75px) moving > 60px rightward with low vertical drift
+  if (touchStartX < 75 && deltaX > 60 && deltaY < 50 && elapsedTime < 450) {
+    closeCardDetails();
+  }
+}, { passive: true });
+
+function copyCardId(id) {
+  navigator.clipboard.writeText(id).then(() => {
+    showToast(`✅ Card ID "${id}" copied!`, 'success');
+  });
+}
+
+function copyDetailLink(url) {
+  navigator.clipboard.writeText(url).then(() => {
+    showToast('✅ NFC Link copied to clipboard!', 'success');
+  });
+}
+
+async function toggleStatus(cardId) {
+  try {
+    const res = await fetch(`/api/cards/${cardId}/toggle-status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showToast(data.is_active ? `✅ Card "${cardId}" is now LIVE` : `⏸️ Card "${cardId}" service PAUSED`, data.is_active ? 'success' : 'error');
+      // Update local cards list
+      const idx = cards.findIndex(c => c.card_id === cardId);
+      if (idx !== -1) cards[idx].is_active = data.is_active;
+
+      // If currently inside detail view of this card, re-render it
+      if (currentDetailCardId === cardId) {
+        openCardDetails(cardId, false);
+      }
+      loadCards();
+    } else {
+      showToast(data.error || 'Failed to toggle status', 'error');
+    }
+  } catch (err) {
+    showToast('Network error while toggling status', 'error');
+  }
+}
+
+
+// ── Keywords ───────────────────────────────────────────────
+function addKeyword(e) {
+  if (e.key !== 'Enter' && e.type !== 'click') return;
+  const input = document.getElementById('kwInput');
+  const val = input.value.trim();
+  if (!val || keywords.includes(val)) { input.value = ''; return; }
+  keywords.push(val);
+  input.value = '';
+  renderKeywords();
+  syncToPreviewCard();
+}
+
+function removeKeyword(kw) {
+  keywords = keywords.filter(k => k !== kw);
+  renderKeywords();
+  syncToPreviewCard();
+}
+
+function renderKeywords() {
+  document.getElementById('keywordsList').innerHTML =
+    keywords.map(k => `
+      <span class="kw-tag">
+        ${escapeHtml(k)}
+        <span class="kw-remove" onclick="removeKeyword('${escapeHtml(k)}')">×</span>
+      </span>`).join('');
+}
+
+// ── Smart Detect & Preview Sync ──────────────────────────────
+function handleUrlInput() {
+  const url = document.getElementById('f_review_url').value.trim();
+  const badge = document.getElementById('linkStatusBadge');
+  const hint = document.getElementById('placeIdHint');
+
+  if (!url) {
+    badge.textContent = '';
+    hint.textContent = 'Paste Google Maps Share link or Review link';
+    hint.style.color = '';
+    return;
+  }
+
+  if (url.includes('placeid=')) {
+    badge.textContent = '✅ Review Link detected';
+    badge.style.color = '#4ade80';
+    hint.textContent = 'Place ID detected!';
+    hint.style.color = '#4ade80';
+  } else if (url.includes('goo.gl') || url.includes('google.com/maps')) {
+    badge.textContent = '🔍 Resolving link...';
+    badge.style.color = '#93bbfc';
+    hint.textContent = 'Resolving Place ID & Shop Name...';
+    hint.style.color = '#93bbfc';
+  }
+
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(triggerSmartDetect, 500);
+}
+
+function handleShopNameInput() {
+  const name = document.getElementById('f_shop_name').value.trim();
+  syncToPreviewCard();
+
+  if (!document.getElementById('f_card_id').value.trim() && !editMode) {
+    const slug = name.toLowerCase().replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+    document.getElementById('f_card_id').value = slug;
+    document.getElementById('cardSlugText').textContent = '/r/' + (slug || '...');
+  }
+
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    if (name.length > 2) triggerSmartDetect();
+  }, 700);
+}
+
+function handleShopNameBlur() {
+  const name = document.getElementById('f_shop_name').value.trim();
+  if (name && keywords.length === 0) triggerSmartDetect();
+}
+
+async function triggerSmartDetect() {
+  const url = document.getElementById('f_review_url').value.trim();
+  const shopName = document.getElementById('f_shop_name').value.trim();
+
+  if (!url && !shopName) return;
+  if (isDetecting) return;
+  isDetecting = true;
+
+  const card = document.getElementById('aiPreviewCard');
+  card.style.display = 'block';
+  document.getElementById('aiCardTitle').textContent = 'Analyzing shop details...';
+  document.getElementById('aiCardSpinner').textContent = '⏳';
+
+  try {
+    const res = await fetch('/api/smart-detect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, shop_name: shopName })
+    });
+    const data = await res.json();
+
+    if (data.review_url) {
+      document.getElementById('f_review_url').value = data.review_url;
+      document.getElementById('linkStatusBadge').textContent = '✅ Verified';
+      document.getElementById('linkStatusBadge').style.color = '#4ade80';
+    }
+
+    if (data.shop_name && !document.getElementById('f_shop_name').value) {
+      document.getElementById('f_shop_name').value = data.shop_name;
+    }
+
+    if (data.suggested_card_id && !document.getElementById('f_card_id').value.trim() && !editMode) {
+      document.getElementById('f_card_id').value = data.suggested_card_id;
+    }
+
+    if (data.shop_type) {
+      const sel = document.getElementById('f_shop_type');
+      for (let opt of sel.options) {
+        if (opt.value.toLowerCase() === data.shop_type.toLowerCase()) {
+          sel.value = opt.value; break;
+        }
+      }
+    }
+
+    if (data.description && !document.getElementById('f_description').value) {
+      document.getElementById('f_description').value = data.description;
+    }
+
+    if (data.keywords && data.keywords.length > 0 && keywords.length === 0) {
+      keywords = [...data.keywords];
+      renderKeywords();
+    }
+
+    syncToPreviewCard();
+
+  } catch (err) {
+    console.error("Smart detect failed:", err);
+  } finally {
+    isDetecting = false;
+    document.getElementById('aiCardTitle').textContent = 'AI Retrieved Shop Profile';
+    document.getElementById('aiCardSpinner').textContent = '⚡';
+  }
+}
+
+function syncToPreviewCard() {
+  const shopName = document.getElementById('f_shop_name').value.trim();
+  const shopType = document.getElementById('f_shop_type').value.trim();
+  const desc = document.getElementById('f_description').value.trim();
+  const cardId = document.getElementById('f_card_id').value.trim();
+
+  if (shopName || shopType || keywords.length > 0) {
+    document.getElementById('aiPreviewCard').style.display = 'block';
+  }
+
+  document.getElementById('cardShopTitle').textContent = shopName || 'Shop Name';
+  document.getElementById('cardBadgeType').textContent = shopType || 'General';
+  document.getElementById('cardDescText').textContent = desc || (shopName ? `${shopName} provides high quality customer service.` : 'Description will appear here...');
+  document.getElementById('cardSlugText').textContent = '/r/' + (cardId || shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || '...');
+
+  const kwContainer = document.getElementById('cardKeywordsList');
+  if (keywords.length > 0) {
+    kwContainer.innerHTML = keywords.map(k =>
+      `<span class="meta-tag">✓ ${escapeHtml(k)}</span>`
+    ).join('');
+  } else {
+    kwContainer.innerHTML = '<span style="font-size:11.5px;color:#64748b;font-style:italic">Auto-generating keywords...</span>';
+  }
+}
+
+function toggleAdvanced() {
+  const sec = document.getElementById('advancedSection');
+  const arrow = document.getElementById('advArrow');
+  const txt = document.getElementById('advToggleText');
+  if (sec.style.display === 'none' || !sec.style.display) {
+    sec.style.display = 'block';
+    arrow.textContent = '▲';
+    txt.textContent = 'Hide Custom Adjustments';
+  } else {
+    sec.style.display = 'none';
+    arrow.textContent = '▼';
+    txt.textContent = 'Custom Adjustments (Optional)';
+  }
+}
+
+// ── Modal Handling ───────────────────────────────────────────
+function showAddModal() {
+  editMode = false;
+  editCardId = null;
+  keywords = [];
+  document.getElementById('modalFormView').style.display = 'block';
+  document.getElementById('modalSuccessView').style.display = 'none';
+  document.getElementById('modalTitle').textContent = '⚡ Setup Review Card';
+  document.getElementById('f_card_id').value = '';
+  document.getElementById('f_card_id').disabled = false;
+  document.getElementById('f_review_url').value = '';
+  document.getElementById('f_shop_name').value = '';
+  document.getElementById('f_shop_type').value = '';
+  document.getElementById('f_description').value = '';
+  if (document.getElementById('f_ai_json')) document.getElementById('f_ai_json').value = '';
+  if (document.getElementById('jsonStatusHint')) {
+    document.getElementById('jsonStatusHint').textContent = 'JSON পেস্ট করার সাথে সাথে ডাটা লোড হয়ে যাবে';
+    document.getElementById('jsonStatusHint').style.color = '';
+  }
+  switchInputMode('simple');
+  document.getElementById('linkStatusBadge').textContent = '';
+  document.getElementById('placeIdHint').textContent = 'Google Maps থেকে Share link বা Review link পেস্ট করো';
+  document.getElementById('placeIdHint').style.color = '';
+  document.getElementById('aiPreviewCard').style.display = 'none';
+  document.getElementById('advancedSection').style.display = 'none';
+  document.getElementById('advArrow').textContent = '▼';
+  document.getElementById('advToggleText').textContent = 'Custom Adjustments (Optional)';
+  renderKeywords();
+  document.getElementById('modal').classList.add('open');
+}
+
+function showEditModal(cardId) {
+  const shop = cards.find(c => c.card_id === cardId);
+  if (!shop) return;
+  editMode = true;
+  editCardId = cardId;
+  keywords = [...(shop.keywords || [])];
+  document.getElementById('modalFormView').style.display = 'block';
+  document.getElementById('modalSuccessView').style.display = 'none';
+  document.getElementById('modalTitle').textContent = 'Edit Card';
+  document.getElementById('f_card_id').value = shop.card_id;
+  document.getElementById('f_card_id').disabled = true;
+  document.getElementById('f_review_url').value = shop.google_review_url;
+  document.getElementById('f_shop_name').value = shop.shop_name;
+  document.getElementById('f_shop_type').value = shop.shop_type;
+  document.getElementById('f_description').value = shop.description || '';
+  document.getElementById('linkStatusBadge').textContent = 'Active';
+  document.getElementById('linkStatusBadge').style.color = '#4ade80';
+  document.getElementById('advancedSection').style.display = 'block';
+  document.getElementById('advArrow').textContent = '▲';
+  document.getElementById('advToggleText').textContent = 'Hide Custom Adjustments';
+  renderKeywords();
+  syncToPreviewCard();
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+}
+
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal')) closeModal();
+});
+
+// ── Save Card ────────────────────────────────────────────────
+async function saveCard() {
+  const url = document.getElementById('f_review_url').value.trim();
+  const shopName = document.getElementById('f_shop_name').value.trim();
+
+  if (!url && !shopName) {
+    showToast('Google Link আর Shop Name আবশ্যক', 'error');
+    return;
+  }
+
+  let cardId = document.getElementById('f_card_id').value.trim();
+  if (!cardId && shopName) {
+    cardId = shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+
+  const payload = {
+    card_id:           cardId,
+    google_review_url: url,
+    shop_name:         shopName,
+    shop_type:         document.getElementById('f_shop_type').value.trim() || 'Other',
+    description:       document.getElementById('f_description').value.trim(),
+    keywords:          keywords,
+  };
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span>⏳</span> <span>Saving...</span>';
+
+  const endpoint = editMode ? `/api/cards/${editCardId}` : '/api/cards';
+  const method = editMode ? 'PUT' : 'POST';
+
+  try {
+    const res = await fetch(endpoint, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await res.json();
+    btn.disabled = false;
+    btn.innerHTML = '<span>💾</span> <span>Save & Generate NFC Card</span>';
+
+    if (res.ok) {
+      loadCards();
+      const finalCardId = data.card_id || cardId;
+      latestCreatedUrl = `${window.location.origin}/r/${finalCardId}`;
+
+      // Switch to Success View
+      document.getElementById('modalFormView').style.display = 'none';
+      document.getElementById('modalSuccessView').style.display = 'block';
+      document.getElementById('successShopName').textContent = shopName || 'Shop';
+      document.getElementById('successCardUrl').textContent = latestCreatedUrl;
+
+      // Copy link
+      navigator.clipboard.writeText(latestCreatedUrl).catch(() => {});
+      showToast('✅ Card saved & NFC Link copied!', 'success');
+    } else {
+      showToast(data.error || 'Error saving card', 'error');
+    }
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = '<span>💾</span> <span>Save & Generate NFC Card</span>';
+    showToast('Network error while saving card', 'error');
+  }
+}
+
+function copyCreatedLink() {
+  if (!latestCreatedUrl) return;
+  navigator.clipboard.writeText(latestCreatedUrl).then(() => {
+    const btn = document.getElementById('copySuccessBtn');
+    btn.textContent = '✅ Copied to Clipboard!';
+    setTimeout(() => { btn.textContent = '📋 Copy NFC Link'; }, 2500);
+    showToast('✅ Link copied to clipboard! Ready to write to NFC card.', 'success');
+  });
+}
+
+function openCreatedLink() {
+  if (latestCreatedUrl) {
+    window.open(latestCreatedUrl, '_blank');
+  }
+}
+
+// ── Actions ─────────────────────────────────────────────────
+async function deleteCard(cardId) {
+  if (!confirm(`Delete card "${cardId}"? This will delete all generated reviews.`)) return;
+  await fetch(`/api/cards/${cardId}`, { method: 'DELETE' });
+  showToast('Card deleted', 'success');
+  loadCards();
+}
+
+async function regenerate(cardId) {
+  await fetch(`/api/cards/${cardId}/regenerate`, { method: 'POST' });
+  showToast('🔄 Regenerating reviews in background...', 'success');
+}
+
+function copyLink(cardId) {
+  const url = `${window.location.origin}/r/${cardId}`;
+  navigator.clipboard.writeText(url).then(() => {
+    showToast('✅ Link copied! Use this for NFC/QR.', 'success');
+  });
+}
+
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+loadCards();
+</script>
+</body>
+</html>
