@@ -1,93 +1,72 @@
-# Google NFC Smart Review System
+# Google NFC Smart Review System (FastAPI + LangChain + React)
 
-An end-to-end smart Google Review automation system designed for physical NFC smart cards and QR codes. When customers tap an NFC card or scan a QR code at a store or clinic, they get a frictionless, AI-assisted review experience with carousel review selection, keyword customization, and instant Google Review posting.
+A modern, high-performance Google Review automation platform designed for physical NFC smart cards and QR codes.
 
----
-
-## 🌟 Key Features
-
-### 1. 📲 Customer Experience (`/r/<card_id>`)
-* **Touch-Optimized Carousel**: Smooth touch and swipe cards (both mobile swipe and arrow buttons).
-* **AI Smart Review Suggestions**: Pre-generated natural, casual, and authentic customer reviews stored in the database.
-* **Instant Keyword Customization**: Visitors can add their own personalized comments/products and click "Generate" to generate a tailored 5-star review.
-* **One-Click Google Review**: Copies the selected review to clipboard and opens the store's official Google review dialog with 5 stars pre-selected.
-* **Smart Review Pool & Auto-Refill**: Rotates 5 reviews per scan from an initial pool of 10. Automatically clears exhausted reviews and refills with 10 fresh authentic variations.
-
-### 2. ⚡ Executive Admin Dashboard (`/`)
-* **Modern Executive White Theme**: High-contrast, clean SaaS UI inspired by Stripe and Google Cloud design systems.
-* **Store Directory & Instant Search**: Filter cards by ID, store name, or live/paused status.
-* **Dedicated Card Analytics**:
-  * Real-time scan metrics: Today, This Month, This Year, and Lifetime scans.
-  * Master Service Status Switch: Instantly activate or pause review services for any physical card.
-* **Mobile-First UX with Swipe-Back Navigation**:
-  * Edge swipe-right touch gesture to return from detail views to the overview list.
-  * Browser history integration (`popstate` + `#card=ID`) preventing accidental app exits.
-* **Automated Store Profile Detection**: Paste any Google Maps share link to auto-extract Place ID, store name, business category, and keywords.
-
-### 3. 🗄️ Database & Cloud Architecture
-* **Supabase PostgreSQL & SQLite Hybrid**: Native support for Supabase PostgreSQL (via `DATABASE_URL`) with automatic local SQLite fallback.
-* **Async Groq AI Integration**: Generates contextual, natural-sounding reviews via Groq's high-speed inference engine (`llama-3.3-70b-versatile`).
+* **Backend Engine:** **FastAPI** (Python 3.11+, Uvicorn, Pydantic, BackgroundTasks)
+* **AI Orchestration:** **LangChain** + **ChatGroq** (`qwen/qwen3.8-27b`)
+* **Frontend App:** **React** + **Vite** (Executive White UI, Mobile Touch Gestures)
+* **Cloud Infrastructure:** **Render** (Backend API) & **Vercel** (Global Frontend CDN)
+* **Database:** **Supabase PostgreSQL** with local SQLite fallback
 
 ---
 
-## 🚀 Quick Start
+## 🌟 Key Architecture & Features
 
-### 1. Prerequisites
-* Python 3.10+
-* Groq API Key ([Get Groq API Key](https://console.groq.com))
-* (Optional) Supabase PostgreSQL database
+### 1. ⚡ FastAPI Backend (`Render`)
+* **Asynchronous High Concurrency:** Fast endpoints with sub-second response times.
+* **OpenAPI / Swagger Documentation:** Interactive API explorer at `/docs` and `/redoc`.
+* **LangChain Integration:** 
+  * Structured business profile extraction chain.
+  * Batch human-sounding 5-star review generation chain.
+  * Customer notes-to-review expansion chain.
+* **Background Tasks:** Asynchronously pre-generates 10 authentic reviews per store card without blocking HTTP response.
 
-### 2. Installation
+### 2. ⚛️ React Frontend (`Vercel`)
+* **Executive White Theme:** Sleek, high-contrast dashboard with Google color accents and tactile NFC card layouts.
+* **Mobile-First Touch Gestures:** Native edge swipe-right to return from card details view; browser history integration (`popstate`).
+* **Customer Review Carousel:** 5-star cards carousel, 1-click clipboard copy + direct official Google Review write popup, and AI custom review tab.
+
+---
+
+## 🚀 Deployment Guide
+
+### A. Deploy Backend to Render (FastAPI)
+1. In Render, create a new **Web Service** from this GitHub repository.
+2. Configuration:
+   * **Runtime:** `Python 3`
+   * **Build Command:** `pip install -r requirements.txt`
+   * **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
+3. Environment Variables:
+   * `GROQ_API_KEY`: Your Groq API key
+   * `SECRET_KEY`: Random secret string
+   * `DATABASE_URL`: Supabase PostgreSQL connection string
+
+### B. Deploy Frontend to Vercel (React)
+1. Import this GitHub repo in **Vercel**.
+2. Vercel automatically detects the included `vercel.json`:
+   * **Framework Preset:** Vite
+   * **Build Command:** `cd frontend && npm install && npm run build`
+   * **Output Directory:** `frontend/dist`
+3. (Optional) Set Environment Variable in Vercel:
+   * `VITE_API_BASE`: `https://google-review-backend-system.onrender.com`
+4. Click **Deploy**!
+
+---
+
+## 💻 Local Development
+
+### 1. Start FastAPI Backend
 ```bash
-# Clone the repository
-git clone https://github.com/JainKushal556/google-review-backend-system.git
-cd google-review-backend-system
-
-# Install dependencies
 pip install -r requirements.txt
+python -m uvicorn main:app --host 0.0.0.0 --port 5000 --reload
 ```
+* API: `http://localhost:5000`
+* Swagger Docs: `http://localhost:5000/docs`
 
-### 3. Configuration
-Copy `.env.example` to `.env` and fill in your keys:
+### 2. Start React Frontend
 ```bash
-cp .env.example .env
+cd frontend
+npm install
+npm run dev
 ```
-
-```ini
-GROQ_API_KEY=your_groq_api_key_here
-SECRET_KEY=your_random_secret_key
-# Optional: Supabase PostgreSQL (if omitted, local reviews.db SQLite is used)
-DATABASE_URL=postgresql://postgres.xxxx:your_password@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require
-```
-
-### 4. Running the Server
-```bash
-python main.py
-```
-Open your browser at:
-* **Admin Dashboard**: `http://localhost:5000`
-* **NFC Customer Link**: `http://localhost:5000/r/<card_id>`
-
----
-
-## 📁 Project Structure
-
-```
-├── main.py              # Flask server, routing, and REST API endpoints
-├── database.py          # Unified database layer (Supabase PostgreSQL / SQLite)
-├── ai_service.py        # Groq AI review generation and natural language prompt logic
-├── templates/
-│   ├── admin.html       # Executive White Theme admin dashboard
-│   ├── customer.html    # Touch-optimized customer review carousel landing page
-│   ├── processing.html  # Dynamic setup loading screen
-│   └── inactive.html    # Maintenance / service paused notice
-├── requirements.txt     # Python package requirements
-├── .env.example         # Example configuration file
-└── .gitignore           # Protects credentials and local database
-```
-
----
-
-## 🔒 Security
-* Sensitive environment variables (`.env`, `pass.txt`) and local database files are excluded via `.gitignore`.
-* Database connections enforce SSL mode when connecting to PostgreSQL.
+* App: `http://localhost:5173`

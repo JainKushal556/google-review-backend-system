@@ -1,38 +1,91 @@
-import json
+"""
+main.py — High-Performance API Server powered by FastAPI & LangChain
+Provides:
+  - Automatic OpenAPI / Swagger docs at /docs & /redoc
+  - Asynchronous background tasks for review generation
+  - Full CORS support for Vercel and third-party frontends
+  - Dual support: Standalone JSON API + Direct Template Rendering
+"""
 import os
+import json
 import re
-import threading
-from urllib.parse import parse_qs, unquote_plus, urlparse
-
-from dotenv import load_dotenv
-from flask import Flask, Response, abort, jsonify, render_template, request
-from flask_cors import CORS
+from typing import Optional, List, Dict, Any
+from urllib.parse import urlparse, parse_qs, unquote_plus
 import requests as http_req
 
-import ai_service as ai
+from dotenv import load_dotenv
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, Field
+
 import database as db
+import ai_service as ai
 
 load_dotenv()
 
-app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY", "dev-secret-change-me")
-CORS(app)
+app = FastAPI(
+    title="Google NFC Review System API",
+    description="High-performance backend powered by FastAPI & LangChain for NFC smart review cards.",
+    version="2.0.0",
+)
 
-# ── Init DB on startup ───────────────────────────────────────
+# ── CORS Middleware (Enables seamless Vercel & local connections) ─
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Initialize DB on startup
 db.init_db()
 
+# Setup Templates for fallback/direct rendering
+templates = Jinja2Templates(directory="templates")
 
-# ── Helpers ──────────────────────────────────────────────────
+
+# ── Pydantic Request Models ───────────────────────────────────
+
+class SmartDetectRequest(BaseModel):
+    url: Optional[str] = ""
+    shop_name: Optional[str] = ""
+
+class CreateCardRequest(BaseModel):
+    google_review_url: Optional[str] = ""
+    place_id: Optional[str] = ""
+    shop_name: Optional[str] = "My Shop"
+    card_id: Optional[str] = ""
+    shop_type: Optional[str] = "Other"
+    description: Optional[str] = ""
+    keywords: Optional[List[str]] = Field(default_factory=list)
+    ai_json: Optional[Any] = None
+
+class UpdateCardRequest(BaseModel):
+    shop_name: str
+    shop_type: str
+    description: Optional[str] = ""
+    keywords: Optional[List[str]] = Field(default_factory=list)
+
+class ToggleStatusRequest(BaseModel):
+    is_active: Optional[bool] = None
+
+class UseReviewRequest(BaseModel):
+    card_id: Optional[str] = None
+
+class CustomReviewRequest(BaseModel):
+    user_input: Optional[str] = ""
+
+
+# ── Link Parsing Helpers ─────────────────────────────────────
+
+def build_review_url(place_id: str) -> str:
+    return f"https://search.google.com/local/writereview?placeid={place_id}"
 
 def parse_google_url(url: str) -> dict:
-    """
-    Extracts Place ID, full expanded URL, and Shop Name from any Google URL.
-    Handles:
-      - Short links: maps.app.goo.gl/xxx, g.co/maps/xxx
-      - Maps places: google.com/maps/place/Name/@...
-      - Review links: search.google.com/local/writereview?placeid=...
-    """
-    url = url.strip()
+    url = (url or "").strip()
     if not url:
         return {"place_id": None, "review_url": None, "name": None, "expanded_url": url}
 
@@ -40,7 +93,6 @@ def parse_google_url(url: str) -> dict:
     name = None
     place_id = None
 
-    # Follow redirect for short links
     if "goo.gl" in url or "g.co" in url or "maps.app" in url:
         try:
             headers = {
@@ -51,7 +103,6 @@ def parse_google_url(url: str) -> dict:
         except Exception as e:
             print(f"[LinkResolver] Error following redirect: {e}")
 
-    # Extract Place ID from placeid query param
     if "placeid=" in expanded_url:
         try:
             parsed = urlparse(expanded_url)
@@ -62,13 +113,11 @@ def parse_google_url(url: str) -> dict:
         except Exception:
             pass
 
-    # Extract Place ID from !1s (ChIJ...)
     if not place_id:
         m_chij = re.search(r'!1s(ChIJ[\w-]+)', expanded_url)
         if m_chij:
             place_id = m_chij.group(1)
 
-    # Extract shop name from /maps/place/<Name>/
     m_name = re.search(r'/maps/place/([^/@?]+)', expanded_url)
     if m_name:
         raw_name = m_name.group(1)
@@ -85,104 +134,61 @@ def parse_google_url(url: str) -> dict:
         "expanded_url": expanded_url
     }
 
-
-def extract_place_id(url: str) -> str | None:
+def extract_place_id(url: str) -> Optional[str]:
     return parse_google_url(url).get("place_id")
 
 
-def build_review_url(place_id: str) -> str:
-    return f"https://search.google.com/local/writereview?placeid={place_id}"
+# ── Background Review Tasks (LangChain) ──────────────────────
+
+def _bg_pre_generate_reviews(shop: dict):
+    print(f"[LangChain-BG] Pre-generating 10 natural reviews for card: {shop['card_id']}")
+    reviews = ai.generate_natural_reviews_batch(
+        shop_name=shop["shop_name"],
+        shop_type=shop.get("shop_type", "Store"),
+        count=10
+    )
+    if reviews:
+        db.save_reviews(shop["id"], reviews)
+        print(f"[LangChain-BG] Saved {len(reviews)} natural reviews for {shop['card_id']}.")
+
+def _bg_replenish_reviews(shop: dict):
+    print(f"[LangChain-Replenish] Generating 10 new natural reviews for {shop['card_id']}...")
+    new_reviews = ai.generate_natural_reviews_batch(
+        shop_name=shop["shop_name"],
+        shop_type=shop.get("shop_type", "Store"),
+        count=10
+    )
+    if new_reviews:
+        db.append_reviews(shop["id"], new_reviews)
+        print(f"[LangChain-Replenish] Appended {len(new_reviews)} fresh reviews for {shop['card_id']}.")
 
 
-# ── Admin Routes ─────────────────────────────────────────────
+# ── Admin & Dashboard Endpoints ──────────────────────────────
 
-@app.route("/")
-def index():
-    return render_template("admin.html")
+@app.get("/", response_class=HTMLResponse)
+def index_page(request: Request):
+    """Directly serves Admin UI template if accessed directly on Render."""
+    return templates.TemplateResponse("admin.html", {"request": request})
 
-
-@app.route("/api/cards", methods=["GET"])
+@app.get("/api/cards")
 def list_cards():
-    shops = db.get_all_shops()
-    return jsonify(shops)
+    """Lists all store NFC cards with scan metrics."""
+    return db.get_all_shops()
 
-
-@app.route("/api/resolve-link", methods=["POST"])
-def resolve_link():
-    data = request.json or {}
-    url = data.get("url", "").strip()
-    if not url:
-        return jsonify({"error": "No URL provided"}), 400
-
-    parsed = parse_google_url(url)
-    return jsonify({
-        "place_id": parsed["place_id"],
-        "review_url": parsed["review_url"],
-        "name": parsed["name"],
-    })
-
-
-@app.route("/api/smart-detect", methods=["POST"])
-def smart_detect():
-    """
-    Single unified smart detection endpoint:
-    Accepts: { url: "...", shop_name: "..." }
-    1. Resolves Google link -> Place ID & Review URL
-    2. If shop_name found in URL or provided by user -> AI enriches:
-       - shop_type
-       - keywords
-       - description
-       - card_id slug
-    Returns everything needed to save the card with zero manual typing!
-    """
-    data = request.json or {}
-    url = data.get("url", "").strip()
-    shop_name = data.get("shop_name", "").strip()
-
-    parsed = {"place_id": None, "review_url": None, "name": None}
-    if url:
-        parsed = parse_google_url(url)
-        if not shop_name and parsed.get("name"):
-            shop_name = parsed["name"]
-
-    # AI auto-enrichment if we have shop_name
-    enrichment = {}
-    if shop_name:
-        enrichment = ai.enrich_shop(shop_name)
-
-    return jsonify({
-        "success": bool(parsed.get("place_id") or shop_name),
-        "place_id": parsed.get("place_id"),
-        "review_url": parsed.get("review_url"),
-        "shop_name": shop_name or parsed.get("name") or "",
-        "shop_type": enrichment.get("shop_type", "Other"),
-        "keywords": enrichment.get("keywords", []),
-        "description": enrichment.get("description", ""),
-        "suggested_card_id": enrichment.get("card_id", ""),
-    })
-
-
-@app.route("/api/auto-detect", methods=["POST"])
-def auto_detect():
-    """Legacy compatibility wrapper around smart-detect."""
-    data = request.json or {}
-    place_id = data.get("place_id", "").strip()
-    if not place_id:
-        return jsonify({"error": "No Place ID"}), 400
-    data["url"] = build_review_url(place_id)
-    return smart_detect()
-
-
-@app.route("/api/cards", methods=["POST"])
-def create_card():
-    data = request.json or {}
+@app.post("/api/cards", status_code=status.HTTP_201_CREATED)
+def create_card(req: CreateCardRequest, bg_tasks: BackgroundTasks):
+    """Creates a new NFC card and triggers LangChain pre-generation in background."""
+    data = req.model_dump()
     review_url = data.get("google_review_url", "").strip()
     place_id = extract_place_id(review_url) or data.get("place_id", "").strip()
 
     if not place_id:
-        return jsonify({"error": "Google link থেকে Place ID পাওয়া যায়নি। দয়া করে সঠিক লিঙ্ক দাও।"}), 400
+        raise HTTPException(
+            status_code=400,
+            detail="Could not detect Place ID from Google Review URL."
+        )
 
-    # Parse AI JSON if provided as string or dict
+    # Parse AI JSON if passed
     ai_json_raw = data.get("ai_json")
     if ai_json_raw:
         try:
@@ -199,11 +205,8 @@ def create_card():
         except Exception as e:
             print(f"[create_card] Error parsing ai_json: {e}")
 
-    shop_name = data.get("shop_name", "").strip()
-    if not shop_name:
-        shop_name = "My Shop"
+    shop_name = data.get("shop_name", "").strip() or "My Shop"
 
-    # Auto-generate or sanitize card_id
     card_id = data.get("card_id", "").strip()
     if not card_id:
         slug = re.sub(r'[^a-zA-Z0-9_-]+', '-', shop_name).strip('-')
@@ -225,23 +228,17 @@ def create_card():
         google_review_url=build_review_url(place_id),
     )
     if not ok:
-        return jsonify({"error": msg}), 409
+        raise HTTPException(status_code=409, detail=msg)
 
-    # Pre-generate reviews in background thread (non-blocking)
     shop = db.get_shop_by_card_id(card_id)
     if shop:
-        threading.Thread(
-            target=_pre_generate_reviews,
-            args=(shop,),
-            daemon=True
-        ).start()
+        bg_tasks.add_task(_bg_pre_generate_reviews, shop)
 
-    return jsonify({"message": msg, "card_id": card_id}), 201
+    return {"message": msg, "card_id": card_id}
 
-
-@app.route("/api/cards/<card_id>", methods=["PUT"])
-def update_card(card_id):
-    data = request.json
+@app.put("/api/cards/{card_id}")
+def update_card(card_id: str, req: UpdateCardRequest, bg_tasks: BackgroundTasks):
+    data = req.model_dump()
     db.update_shop(
         card_id=card_id,
         shop_name=data["shop_name"],
@@ -249,124 +246,118 @@ def update_card(card_id):
         description=data.get("description", ""),
         keywords=data.get("keywords", []),
     )
-    # Re-generate reviews
     shop = db.get_shop_by_card_id(card_id)
     if shop:
-        threading.Thread(target=_pre_generate_reviews, args=(shop,), daemon=True).start()
-    return jsonify({"message": "Updated"})
+        bg_tasks.add_task(_bg_pre_generate_reviews, shop)
+    return {"message": "Updated"}
 
+@app.delete("/api/cards/{card_id}")
+def delete_card(card_id: str):
+    db.delete_shop(card_id)
+    return {"message": "Deleted"}
 
-@app.route("/api/cards/<card_id>/toggle-status", methods=["POST"])
-def toggle_card_status(card_id):
-    """Toggles card between Active and Service Off."""
-    data = request.get_json(silent=True) or {}
-    is_active = data.get("is_active")
+@app.post("/api/cards/{card_id}/toggle-status")
+def toggle_card_status(card_id: str, req: Optional[ToggleStatusRequest] = None):
+    is_active = req.is_active if req else None
     new_status = db.toggle_shop_status(card_id, is_active)
     if new_status is None:
-        return jsonify({"error": "Card not found"}), 404
-    return jsonify({"success": True, "card_id": card_id, "is_active": new_status})
+        raise HTTPException(status_code=404, detail="Card not found")
+    return {"success": True, "card_id": card_id, "is_active": new_status}
 
-
-@app.route("/api/cards/<card_id>", methods=["DELETE"])
-def delete_card(card_id):
-    db.delete_shop(card_id)
-    return jsonify({"message": "Deleted"})
-
-
-@app.route("/api/cards/<card_id>/regenerate", methods=["POST"])
-def regenerate_reviews(card_id):
+@app.post("/api/cards/{card_id}/regenerate")
+def regenerate_reviews(card_id: str, bg_tasks: BackgroundTasks):
     shop = db.get_shop_by_card_id(card_id)
     if not shop:
-        return jsonify({"error": "Card not found"}), 404
-    threading.Thread(target=_pre_generate_reviews, args=(shop,), daemon=True).start()
-    return jsonify({"message": "Regeneration started in background"})
+        raise HTTPException(status_code=404, detail="Card not found")
+    bg_tasks.add_task(_bg_pre_generate_reviews, shop)
+    return {"message": "Regeneration started in background via LangChain"}
 
 
-def _pre_generate_reviews(shop):
-    """Background task: generate initial 10 natural, casual reviews and store in DB."""
-    print(f"[BG] Pre-generating 10 natural reviews for card: {shop['card_id']}")
-    reviews = ai.generate_natural_reviews_batch(
-        shop_name=shop["shop_name"],
-        shop_type=shop.get("shop_type", "Store"),
-        count=10
-    )
-    if reviews:
-        db.save_reviews(shop["id"], reviews)
-        print(f"[BG] Saved {len(reviews)} natural reviews for {shop['card_id']}. Card is now LIVE!")
+# ── AI Smart Detect ──────────────────────────────────────────
+
+@app.post("/api/smart-detect")
+def smart_detect(req: SmartDetectRequest):
+    """Resolves link and uses LangChain chain to enrich profile."""
+    url = (req.url or "").strip()
+    shop_name = (req.shop_name or "").strip()
+
+    parsed = {"place_id": None, "review_url": None, "name": None}
+    if url:
+        parsed = parse_google_url(url)
+        if not shop_name and parsed.get("name"):
+            shop_name = parsed["name"]
+
+    enrichment = {}
+    if shop_name:
+        enrichment = ai.enrich_shop(shop_name)
+
+    return {
+        "success": bool(parsed.get("place_id") or shop_name),
+        "place_id": parsed.get("place_id"),
+        "review_url": parsed.get("review_url"),
+        "shop_name": shop_name or parsed.get("name") or "",
+        "shop_type": enrichment.get("shop_type", "Other"),
+        "keywords": enrichment.get("keywords", []),
+        "description": enrichment.get("description", ""),
+        "suggested_card_id": enrichment.get("card_id", ""),
+    }
+
+@app.post("/api/resolve-link")
+def resolve_link(req: SmartDetectRequest):
+    url = (req.url or "").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="No URL provided")
+    parsed = parse_google_url(url)
+    return {
+        "place_id": parsed["place_id"],
+        "review_url": parsed["review_url"],
+        "name": parsed["name"],
+    }
 
 
-def _replenish_reviews(shop):
-    """Background task: when 10 reviews are used, generate & append 10 new natural reviews."""
-    print(f"[BG-Replenish] Generating 10 new natural reviews for {shop['card_id']}...")
-    new_reviews = ai.generate_natural_reviews_batch(
-        shop_name=shop["shop_name"],
-        shop_type=shop.get("shop_type", "Store"),
-        count=10
-    )
-    if new_reviews:
-        db.append_reviews(shop["id"], new_reviews)
-        print(f"[BG-Replenish] Added {len(new_reviews)} fresh reviews for {shop['card_id']}")
+# ── Customer NFC Review Experience Endpoints ────────────────
 
-
-# ── Customer Routes ───────────────────────────────────────────
-
-@app.route("/r/<card_id>")
-def customer_page(card_id):
+@app.get("/r/{card_id}", response_class=HTMLResponse)
+def customer_page(card_id: str, request: Request):
     shop = db.get_shop_by_card_id(card_id)
     if not shop:
-        abort(404)
+        raise HTTPException(status_code=404, detail="Card not found")
 
-    # Check if card service is turned off (inactive)
     if not shop.get("is_active", True):
-        return render_template("inactive.html", shop=shop)
+        return templates.TemplateResponse("inactive.html", {"request": request, "shop": shop})
 
-    # Record scan visit
-    client_ip = request.headers.get("X-Forwarded-For", request.remote_addr)
-    user_agent = request.user_agent.string if request.user_agent else ""
+    client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else None)
+    user_agent = request.headers.get("User-Agent", "")
     db.record_scan(shop["id"], ip=client_ip, user_agent=user_agent)
 
-    # If reviews are still generating in background, show processing screen
     if not db.has_reviews(shop["id"]):
-        return render_template("processing.html", shop=shop)
+        return templates.TemplateResponse("processing.html", {"request": request, "shop": shop})
 
-    return render_template("customer.html", shop=shop)
+    return templates.TemplateResponse("customer.html", {"request": request, "shop": shop})
 
-
-@app.route("/api/card-status/<card_id>")
-def card_status(card_id):
+@app.get("/api/shop/{card_id}")
+def get_shop_info(card_id: str):
     shop = db.get_shop_by_card_id(card_id)
     if not shop:
-        return jsonify({"ready": False, "error": "Not found"}), 404
+        raise HTTPException(status_code=404, detail="Card not found")
+    return shop
 
+@app.get("/api/card-status/{card_id}")
+def card_status(card_id: str):
+    shop = db.get_shop_by_card_id(card_id)
+    if not shop:
+        raise HTTPException(status_code=404, detail="Card not found")
     ready = db.has_reviews(shop["id"])
-    return jsonify({
-        "ready": ready,
-        "card_id": card_id,
-        "shop_name": shop["shop_name"]
-    })
+    return {"ready": ready, "card_id": card_id, "shop_name": shop["shop_name"]}
 
-
-@app.route("/api/shop/<card_id>")
-def get_shop_info(card_id):
+@app.get("/api/reviews/{card_id}")
+@app.get("/api/fallback/{card_id}")
+def get_reviews(card_id: str):
     shop = db.get_shop_by_card_id(card_id)
     if not shop:
-        return jsonify({"error": "Not found"}), 404
-    return jsonify(shop)
-
-
-@app.route("/api/fallback/<card_id>")
-@app.route("/api/reviews/<card_id>")
-def get_fallback(card_id):
-    """
-    On NFC scan: returns random 5 unused reviews directly from DB.
-    Zero AI latency — ultra fast scan-to-screen time!
-    """
-    shop = db.get_shop_by_card_id(card_id)
-    if not shop:
-        return jsonify({"error": "Not found"}), 404
-
+        raise HTTPException(status_code=404, detail="Card not found")
     reviews = db.get_random_unused_reviews(shop["id"], limit=5)
-    return jsonify({
+    return {
         "source": "db",
         "reviews": reviews,
         "shop": {
@@ -374,73 +365,45 @@ def get_fallback(card_id):
             "type": shop["shop_type"],
             "google_review_url": shop["google_review_url"],
         }
-    })
+    }
 
-
-@app.route("/api/reviews/<int:review_id>/use", methods=["POST"])
-def mark_review_as_used(review_id):
-    """
-    Called when a customer selects/posts a review to Google.
-    Marks review as used in DB.
-    When 10 reviews have been used, auto-purges them and triggers replenishment of 10 new reviews.
-    """
-    data = request.json or {}
-    card_id = data.get("card_id")
-    shop = db.get_shop_by_card_id(card_id) if card_id else None
+@app.post("/api/reviews/{review_id}/use")
+def mark_review_used(review_id: int, req: UseReviewRequest, bg_tasks: BackgroundTasks):
+    shop = db.get_shop_by_card_id(req.card_id) if req.card_id else None
     shop_id = shop["id"] if shop else None
 
     result = db.mark_review_used(review_id, shop_id=shop_id)
-
     if result.get("should_replenish"):
-        target_shop = shop
-        if not target_shop and result.get("shop_id"):
-            target_shop = db.get_shop_by_id(result["shop_id"])
-
+        target_shop = shop or (db.get_shop_by_id(result["shop_id"]) if result.get("shop_id") else None)
         if target_shop:
-            threading.Thread(
-                target=_replenish_reviews,
-                args=(target_shop,),
-                daemon=True
-            ).start()
+            bg_tasks.add_task(_bg_replenish_reviews, target_shop)
 
-    return jsonify({"success": True, **result})
+    return {"success": True, **result}
 
-
-@app.route("/api/custom-review/<card_id>", methods=["POST"])
-def generate_user_custom_review(card_id):
+@app.post("/api/custom-review/{card_id}")
+def generate_custom_review(card_id: str, req: CustomReviewRequest):
     shop = db.get_shop_by_card_id(card_id)
     if not shop:
-        return jsonify({"error": "Shop not found"}), 404
-
-    data = request.json or {}
-    user_input = data.get("user_input", "").strip()
+        raise HTTPException(status_code=404, detail="Card not found")
 
     review_text = ai.generate_custom_review(
         shop_name=shop["shop_name"],
         shop_type=shop.get("shop_type", "Store"),
-        user_input=user_input
+        user_input=req.user_input or ""
     )
-    return jsonify({
+    return {
         "review": review_text,
         "shop_name": shop["shop_name"],
         "google_review_url": shop["google_review_url"]
-    })
+    }
 
-
-@app.route("/api/stream/<card_id>")
-def stream_reviews(card_id):
-    """
-    SSE endpoint — streams AI-generated reviews.
-    Client starts a 2-sec timer; if this responds fast enough,
-    AI reviews are shown. Otherwise fallback kicks in from /api/fallback.
-    """
+@app.get("/api/stream/{card_id}")
+def stream_reviews(card_id: str, aspect: str = "general"):
     shop = db.get_shop_by_card_id(card_id)
     if not shop:
-        return jsonify({"error": "Not found"}), 404
+        raise HTTPException(status_code=404, detail="Card not found")
 
-    aspect = request.args.get("aspect", "general")
-
-    def generate():
+    def event_generator():
         yield f"data: {json.dumps({'type': 'start', 'aspect': aspect})}\n\n"
         yield from ai.stream_reviews_for_aspect(
             shop_name=shop["shop_name"],
@@ -450,19 +413,21 @@ def stream_reviews(card_id):
             aspect=aspect,
         )
 
-    return Response(
-        generate(),
-        mimetype="text/event-stream",
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",  # Disable nginx buffering
+            "X-Accel-Buffering": "no",
             "Connection": "keep-alive",
         }
     )
 
 
-# ─────────────────────────────────────────────────────────────
+# ── Run Server (Local) ────────────────────────────────────────
 
 if __name__ == "__main__":
-    print("Google Review Card System running at http://localhost:5000")
-    app.run(debug=True, host="0.0.0.0", port=5000, threaded=True)
+    import uvicorn
+    print("FastAPI & LangChain Server running at http://localhost:5000")
+    print("Interactive Swagger Docs at http://localhost:5000/docs")
+    uvicorn.run("main:app", host="0.0.0.0", port=5000, reload=True)
