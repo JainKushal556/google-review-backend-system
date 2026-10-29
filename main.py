@@ -17,14 +17,13 @@ import secrets
 from collections import defaultdict
 from typing import Optional, List, Dict, Any
 from urllib.parse import urlparse, parse_qs, unquote_plus
-import requests as http_req
+import httpx
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
 import database as db
@@ -34,11 +33,12 @@ load_dotenv()
 
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin423").strip()
 SECRET_KEY = os.getenv("SECRET_KEY", "secret-super-key-change-me").strip()
+FRONTEND_URL = os.getenv("FRONTEND_URL", "").strip().rstrip("/")
 
 app = FastAPI(
     title="Google NFC Review System API",
-    description="High-performance backend powered by FastAPI & LangChain with Admin Authentication & Rate Limiting.",
-    version="2.1.0",
+    description="High-performance modern backend powered by FastAPI & LangChain with Admin Authentication & Rate Limiting.",
+    version="2.2.0",
 )
 
 # ── CORS & Security Headers Middleware ────────────────────────
@@ -60,9 +60,6 @@ async def add_security_headers(request: Request, call_next):
 
 # Initialize DB on startup
 db.init_db()
-
-# Setup Templates for fallback/direct rendering
-templates = Jinja2Templates(directory="templates")
 
 # Bearer token security scheme
 security_scheme = HTTPBearer(auto_error=False)
@@ -184,8 +181,9 @@ def parse_google_url(url: str) -> dict:
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
             }
-            r = http_req.get(url, allow_redirects=True, timeout=8, headers=headers)
-            expanded_url = r.url
+            with httpx.Client(follow_redirects=True, timeout=8.0, headers=headers) as client:
+                r = client.get(url)
+                expanded_url = str(r.url)
         except Exception as e:
             print(f"[LinkResolver] Error following redirect: {e}")
 
@@ -272,10 +270,10 @@ def verify_admin_session(admin_auth: bool = Depends(get_current_admin)):
 
 # ── Admin Protected Endpoints ────────────────────────────────
 
-@app.get("/", response_class=HTMLResponse)
-def index_page(request: Request):
-    """Serves Admin UI template."""
-    return templates.TemplateResponse("admin.html", {"request": request})
+@app.get("/", include_in_schema=False)
+def index_page():
+    """Redirects to interactive Swagger OpenAPI documentation."""
+    return RedirectResponse(url="/docs")
 
 @app.get("/api/cards")
 def list_cards(admin_auth: bool = Depends(get_current_admin)):
@@ -425,24 +423,40 @@ def resolve_link(req: SmartDetectRequest, admin_auth: bool = Depends(get_current
 
 # ── Public Customer Endpoints (NFC Card Taps) ────────────────
 
-@app.get("/r/{card_id}", response_class=HTMLResponse)
+@app.get("/r/{card_id}")
 def customer_page(card_id: str, request: Request):
-    """Direct fallback page when customer taps physical card."""
+    """Direct NFC tap handler: redirects to React frontend or renders standalone page."""
     shop = db.get_shop_by_card_id(card_id)
     if not shop:
         raise HTTPException(status_code=404, detail="Card not found")
 
-    if not shop.get("is_active", True):
-        return templates.TemplateResponse("inactive.html", {"request": request, "shop": shop})
-
-    client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else None)
+    client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown").split(",")[0].strip()
     user_agent = request.headers.get("User-Agent", "")
     db.record_scan(shop["id"], ip=client_ip, user_agent=user_agent)
 
-    if not db.has_reviews(shop["id"]):
-        return templates.TemplateResponse("processing.html", {"request": request, "shop": shop})
+    # If Vercel React frontend is configured, redirect directly to React Review page
+    if FRONTEND_URL:
+        return RedirectResponse(url=f"{FRONTEND_URL}/r/{card_id}")
 
-    return templates.TemplateResponse("customer.html", {"request": request, "shop": shop})
+    # Check active status
+    if not shop.get("is_active", True):
+        inactive_path = os.path.join("templates", "inactive.html")
+        if os.path.exists(inactive_path):
+            with open(inactive_path, "r", encoding="utf-8") as f:
+                html = f.read().replace("{{ shop.shop_name }}", shop["shop_name"])
+                return HTMLResponse(content=html)
+
+    # Lightweight direct HTML rendering without needing Jinja2
+    template_path = os.path.join("templates", "customer.html")
+    if os.path.exists(template_path):
+        with open(template_path, "r", encoding="utf-8") as f:
+            html = f.read()
+        html = html.replace("{{ shop.card_id | tojson }}", json.dumps(shop["card_id"]))
+        html = html.replace("{{ shop.google_review_url | tojson }}", json.dumps(shop["google_review_url"]))
+        html = html.replace("{{ shop.shop_name }}", shop["shop_name"])
+        return HTMLResponse(content=html)
+
+    return RedirectResponse(url=f"/api/reviews/{card_id}")
 
 @app.get("/api/shop/{card_id}")
 def get_shop_info(card_id: str):
