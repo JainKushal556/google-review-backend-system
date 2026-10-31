@@ -55,8 +55,11 @@ app.add_middleware(
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    # Hide backend tech stack
+    response.headers["Server"] = "WebSecure"
     return response
 
 # ── Error Logging Helper & Global Exception Handler ──────────
@@ -132,22 +135,37 @@ def get_current_admin(credentials: Optional[HTTPAuthorizationCredentials] = Depe
     return True
 
 
-# ── IP Rate Limiter (Protects AI Generation Endpoints) ─────────
+# ── IP Rate Limiter & Brute-Force Shield ─────────────────────────
 
 _rate_limits = defaultdict(list)
+_login_attempts = defaultdict(list)
+_card_create_attempts = defaultdict(list)
 
-def enforce_rate_limit(ip: str, max_requests: int = 5, window_seconds: int = 300):
-    """Allows max 5 AI review generations per IP in 5 minutes."""
+def get_real_client_ip(request: Request) -> str:
+    """Extract true client IP even behind Reverse Proxies / Cloudflare."""
+    cf_ip = request.headers.get("CF-Connecting-IP")
+    if cf_ip:
+        return cf_ip.strip()
+    x_forwarded = request.headers.get("X-Forwarded-For")
+    if x_forwarded:
+        return x_forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+def enforce_rate_limit(ip: str, max_requests: int = 5, window_seconds: int = 300, tracker: Optional[dict] = None, error_msg: Optional[str] = None):
+    """Generic sliding-window rate limiter."""
+    if tracker is None:
+        tracker = _rate_limits
     now = time.time()
-    timestamps = [t for t in _rate_limits[ip] if now - t < window_seconds]
+    timestamps = [t for t in tracker[ip] if now - t < window_seconds]
     if len(timestamps) >= max_requests:
-        _rate_limits[ip] = timestamps
+        tracker[ip] = timestamps
+        msg = error_msg or "Too many requests. Please slow down and try again later."
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many review generation requests. Please wait 5 minutes before generating another."
+            detail=msg
         )
     timestamps.append(now)
-    _rate_limits[ip] = timestamps
+    tracker[ip] = timestamps
 
 
 # ── Pydantic Request Models ───────────────────────────────────
@@ -293,15 +311,43 @@ def _bg_replenish_reviews(shop: dict):
 # ── Authentication Endpoints ─────────────────────────────────
 
 @app.post("/api/admin/login")
-def admin_login(req: AdminLoginRequest):
-    """Authenticates admin and returns a signed bearer token."""
+def admin_login(req: AdminLoginRequest, request: Request):
+    """Authenticates admin and returns a signed bearer token with Brute-Force lockout."""
+    client_ip = get_real_client_ip(request)
+    
+    # Brute-force Shield: Max 5 failed attempts in 10 minutes per IP
+    try:
+        enforce_rate_limit(
+            client_ip, 
+            max_requests=5, 
+            window_seconds=600, 
+            tracker=_login_attempts,
+            error_msg="Too many failed login attempts. IP temporarily locked for 10 minutes."
+        )
+    except HTTPException as he:
+        record_error(
+            endpoint="/api/admin/login",
+            error_type="BruteForceAttempt",
+            message=f"IP {client_ip} triggered 10-minute security lockout after repeated login attempts."
+        )
+        raise he
+
     input_pass = req.password.strip()
     # Constant-time comparison against timing attacks
     if not secrets.compare_digest(input_pass, ADMIN_PASSWORD):
+        record_error(
+            endpoint="/api/admin/login",
+            error_type="FailedAdminLogin",
+            message=f"Unauthorized login attempt with invalid password from IP: {client_ip}"
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect admin password."
         )
+
+    # Reset attempts on successful login
+    _login_attempts[client_ip] = []
+    
     token = create_admin_token(SECRET_KEY, hours=72)
     return {"success": True, "token": token, "expires_in": 72 * 3600}
 
@@ -324,8 +370,17 @@ def list_cards(admin_auth: bool = Depends(get_current_admin)):
     return db.get_all_shops()
 
 @app.post("/api/cards", status_code=status.HTTP_201_CREATED)
-def create_card(req: CreateCardRequest, bg_tasks: BackgroundTasks, admin_auth: bool = Depends(get_current_admin)):
-    """Creates a new NFC card (Admin Only)."""
+def create_card(req: CreateCardRequest, bg_tasks: BackgroundTasks, request: Request, admin_auth: bool = Depends(get_current_admin)):
+    """Creates a new NFC card (Admin Only). Rate limited against accidental or abusive spam creation."""
+    client_ip = get_real_client_ip(request)
+    enforce_rate_limit(
+        client_ip,
+        max_requests=20,
+        window_seconds=600,
+        tracker=_card_create_attempts,
+        error_msg="Card creation frequency exceeded. Please wait a few moments."
+    )
+
     data = req.model_dump()
     review_url = data.get("google_review_url", "").strip()
     place_id = extract_place_id(review_url) or data.get("place_id", "").strip()
@@ -494,7 +549,7 @@ def customer_page(card_id: str, request: Request):
     if not shop:
         raise HTTPException(status_code=404, detail="Card not found")
 
-    client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown").split(",")[0].strip()
+    client_ip = get_real_client_ip(request)
     user_agent = request.headers.get("User-Agent", "")
     db.record_scan(shop["id"], ip=client_ip, user_agent=user_agent)
 
@@ -574,7 +629,7 @@ def mark_review_used(review_id: int, req: UseReviewRequest, bg_tasks: Background
 @app.post("/api/custom-review/{card_id}")
 def generate_custom_review(card_id: str, req: CustomReviewRequest, request: Request):
     """Public AI custom review generation with rate limit protection."""
-    client_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown").split(",")[0].strip()
+    client_ip = get_real_client_ip(request)
     try:
         enforce_rate_limit(client_ip, max_requests=5, window_seconds=300)
     except HTTPException as he:
