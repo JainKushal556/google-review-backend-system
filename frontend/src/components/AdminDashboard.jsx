@@ -373,6 +373,20 @@ SHOP DETAILS:
     }
   };
 
+  const getCardUrl = (targetCardId) => {
+    return `${window.location.origin}/r/${targetCardId}`;
+  };
+
+  const copyCardLink = (targetCardId, e) => {
+    if (e) e.stopPropagation();
+    const url = getCardUrl(targetCardId);
+    navigator.clipboard.writeText(url).then(() => {
+      showToast(`📋 Link copied: ${url}`);
+    }).catch(() => {
+      showToast(`📋 Link: ${url}`);
+    });
+  };
+
   const resetForm = () => {
     setCardId('');
     setReviewUrl('');
@@ -577,7 +591,10 @@ SHOP DETAILS:
                   </h1>
                   <p style={{ color: 'var(--text-sub)', fontSize: 14, marginTop: 4 }}>{selectedCard.description}</p>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button className="btn-secondary" style={{ background: '#f0f7ff', borderColor: '#bfdbfe', color: 'var(--google-blue)', fontWeight: 700 }} onClick={(e) => copyCardLink(selectedCard.card_id, e)}>
+                    <Copy size={16} /> Copy NFC Link
+                  </button>
                   <button className="btn-secondary" onClick={() => onOpenCard(selectedCard.card_id)}>
                     <ExternalLink size={16} /> Open Review Page
                   </button>
@@ -707,8 +724,19 @@ SHOP DETAILS:
                     <div style={{ fontSize: 12.5, color: 'var(--text-sub)' }}>
                       <strong>{card.scan_stats?.total || 0}</strong> Lifetime Scans
                     </div>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--google-blue)' }}>
-                      Manage →
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        style={{ padding: '5px 10px', fontSize: 11.5, fontWeight: 700, borderRadius: 6, display: 'inline-flex', alignItems: 'center', gap: 4, background: '#f8fafc' }}
+                        onClick={(e) => copyCardLink(card.card_id, e)}
+                        title="Copy NFC Link"
+                      >
+                        <Copy size={13} /> Copy Link
+                      </button>
+                      <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--google-blue)' }}>
+                        Manage →
+                      </span>
                     </div>
                   </div>
                 </div>
