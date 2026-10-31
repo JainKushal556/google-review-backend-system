@@ -137,76 +137,106 @@ export default function CustomerReview({ cardId, onBack }) {
         {/* Focused Content Area */}
         <div style={{ padding: '0 20px 22px' }}>
           {activeTab === 'carousel' ? (
-            /* ── High-Contrast Clean Review Card ── */
+            /* ── Swipeable Native Touch Carousel ── */
             <div>
               {reviews.length > 0 ? (
-                <div style={{ 
-                  background: '#ffffff', 
-                  border: '1.5px solid #e2e8f0', 
-                  borderRadius: 18, 
-                  padding: '24px 20px', 
-                  textAlign: 'center', 
-                  minHeight: 150, 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center',
-                  boxShadow: '0 4px 14px rgba(0,0,0,0.03)'
-                }}>
-                  <p style={{ 
-                    fontSize: 16.5, 
-                    fontWeight: 600, 
-                    color: '#0f172a', 
-                    lineHeight: 1.55, 
-                    margin: 0,
-                    wordBreak: 'break-word'
-                  }}>
-                    "{reviews[currentIdx]?.content}"
-                  </p>
+                <div>
+                  {/* Horizontal Scroll Track with Native Snap */}
+                  <div 
+                    ref={carouselRef}
+                    onScroll={(e) => {
+                      const scrollLeft = e.target.scrollLeft;
+                      const width = e.target.clientWidth;
+                      if (width > 0) {
+                        const newIndex = Math.round(scrollLeft / width);
+                        if (newIndex !== currentIdx && newIndex >= 0 && newIndex < reviews.length) {
+                          setCurrentIdx(newIndex);
+                        }
+                      }
+                    }}
+                    style={{ 
+                      display: 'flex', 
+                      overflowX: 'auto', 
+                      scrollSnapType: 'x mandatory', 
+                      scrollbarWidth: 'none', 
+                      msOverflowStyle: 'none',
+                      WebkitOverflowScrolling: 'touch',
+                      gap: 12,
+                      padding: '4px 2px',
+                      cursor: 'grab'
+                    }}
+                  >
+                    {reviews.map((rev, idx) => (
+                      <div 
+                        key={rev.id || idx}
+                        style={{ 
+                          flex: '0 0 100%', 
+                          scrollSnapAlign: 'center', 
+                          background: '#ffffff', 
+                          border: '1.5px solid #e2e8f0', 
+                          borderRadius: 20, 
+                          padding: '24px 20px', 
+                          textAlign: 'center', 
+                          minHeight: 140, 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          justifyContent: 'center',
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.03)',
+                          userSelect: 'none'
+                        }}
+                      >
+                        <p style={{ 
+                          fontSize: 16.5, 
+                          fontWeight: 600, 
+                          color: '#0f172a', 
+                          lineHeight: 1.55, 
+                          margin: 0,
+                          wordBreak: 'break-word'
+                        }}>
+                          "{rev.content}"
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Clean Dot Indicators (Live Sync with swipe) */}
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 14 }}>
+                    {reviews.map((_, i) => (
+                      <span 
+                        key={i} 
+                        style={{ 
+                          width: i === currentIdx ? 20 : 6, 
+                          height: 6, 
+                          borderRadius: 4, 
+                          background: i === currentIdx ? '#1a73e8' : '#cbd5e1', 
+                          cursor: 'pointer',
+                          transition: 'all 0.25s ease'
+                        }}
+                        onClick={() => {
+                          setCurrentIdx(i);
+                          if (carouselRef.current) {
+                            carouselRef.current.scrollTo({
+                              left: i * carouselRef.current.clientWidth,
+                              behavior: 'smooth'
+                            });
+                          }
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  <div style={{ textAlign: 'center', fontSize: 11.5, color: '#94a3b8', marginTop: 6, fontWeight: 600 }}>
+                    👈 Swipe left or right 👉
+                  </div>
                 </div>
               ) : (
                 <div style={{ textAlign: 'center', padding: 30, color: '#64748b' }}>Loading reviews...</div>
               )}
 
-              {/* Minimal Dot & Navigation Controls */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
-                <button 
-                  className="btn-secondary" 
-                  style={{ padding: '6px 12px', fontSize: 12, borderRadius: 8 }}
-                  onClick={() => setCurrentIdx(prev => (prev === 0 ? reviews.length - 1 : prev - 1))}
-                >
-                  <ChevronLeft size={15} /> Prev
-                </button>
-
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {reviews.map((_, i) => (
-                    <span 
-                      key={i} 
-                      style={{ 
-                        width: i === currentIdx ? 16 : 6, 
-                        height: 6, 
-                        borderRadius: 4, 
-                        background: i === currentIdx ? '#1a73e8' : '#cbd5e1', 
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                      onClick={() => setCurrentIdx(i)}
-                    />
-                  ))}
-                </div>
-
-                <button 
-                  className="btn-secondary" 
-                  style={{ padding: '6px 12px', fontSize: 12, borderRadius: 8 }}
-                  onClick={() => setCurrentIdx(prev => (prev === reviews.length - 1 ? 0 : prev + 1))}
-                >
-                  Next <ChevronRight size={15} />
-                </button>
-              </div>
-
               {/* Main Action Button */}
               <button 
                 className="btn-primary" 
-                style={{ width: '100%', marginTop: 18, padding: 13, fontSize: 15, fontWeight: 700, borderRadius: 12, justifyContent: 'center' }}
+                style={{ width: '100%', marginTop: 16, padding: 13, fontSize: 15, fontWeight: 700, borderRadius: 12, justifyContent: 'center' }}
                 onClick={() => copyAndOpenGoogle(reviews[currentIdx]?.content, reviews[currentIdx]?.id)}
               >
                 Post on Google ↗
