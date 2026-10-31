@@ -65,7 +65,9 @@ export default function App() {
   };
 
   if (currentView === 'review' && viewCardId) {
-    return <CustomerReview cardId={viewCardId} onBack={handleBackToAdmin} />;
+    // Only pass onBack if coming from admin dashboard preview session (has saved token)
+    const isAdminUser = Boolean(localStorage.getItem('nfc_admin_token'));
+    return <CustomerReview cardId={viewCardId} onBack={isAdminUser ? handleBackToAdmin : null} />;
   }
 
   return <AdminDashboard onOpenCard={handleOpenReview} />;
