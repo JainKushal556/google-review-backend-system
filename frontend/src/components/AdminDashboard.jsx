@@ -3,7 +3,8 @@ import { API_BASE } from '../config';
 import { 
   CreditCard, Search, Plus, ExternalLink, Copy, Check, 
   Trash2, RefreshCw, ArrowLeft, Store, Sparkles, AlertCircle, Play, Pause,
-  Lock, LogOut, ShieldCheck, Bell, BellRing, AlertTriangle, ChevronDown, ChevronUp, X, Activity, ShieldAlert
+  Lock, LogOut, ShieldCheck, Bell, BellRing, AlertTriangle, ChevronDown, ChevronUp, X, Activity, ShieldAlert,
+  FileJson, Zap
 } from 'lucide-react';
 
 export default function AdminDashboard({ onOpenCard }) {
@@ -30,6 +31,9 @@ export default function AdminDashboard({ onOpenCard }) {
   const [loadingErrors, setLoadingErrors] = useState(false);
 
   // Form states
+  const [setupMode, setSetupMode] = useState('simple'); // 'simple' or 'json'
+  const [jsonInput, setJsonInput] = useState('');
+  const [jsonStatus, setJsonStatus] = useState(null); // { valid: true/false, message: '' }
   const [cardId, setCardId] = useState('');
   const [reviewUrl, setReviewUrl] = useState('');
   const [shopName, setShopName] = useState('');
@@ -244,17 +248,22 @@ export default function AdminDashboard({ onOpenCard }) {
 
     setSaving(true);
     try {
+      const payload = {
+        card_id: cardId,
+        google_review_url: reviewUrl,
+        shop_name: shopName || 'My Store',
+        shop_type: shopType,
+        description,
+        keywords
+      };
+      if (setupMode === 'json' && jsonInput.trim()) {
+        payload.ai_json = jsonInput.trim();
+      }
+
       const res = await fetch(`${API_BASE}/api/cards`, {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({
-          card_id: cardId,
-          google_review_url: reviewUrl,
-          shop_name: shopName || 'My Store',
-          shop_type: shopType,
-          description,
-          keywords
-        })
+        body: JSON.stringify(payload)
       });
 
       const data = await res.json();
@@ -309,6 +318,61 @@ export default function AdminDashboard({ onOpenCard }) {
     }
   };
 
+  const MASTER_PROMPT_TEMPLATE = `You are an expert Google Review card assistant.
+I will give you a shop's details in simple words. 
+Your task is to analyze it and respond ONLY with a clean JSON object that matches my backend database format. No explanation, no markdown text outside JSON.
+
+JSON FORMAT REQUIRED:
+{
+  "shop_name": "Full official shop name",
+  "shop_type": "One exact category from: Restaurant, Cafe, Hair Salon, Tattoo Studio, Spa & Wellness, Clothing Store, Electronics Shop, Gym & Fitness, Photography Studio, Bakery, Medical Clinic, Dental Clinic, Hotel, Other",
+  "card_id": "clean-lowercase-slug-without-spaces-or-special-characters",
+  "description": "1 crisp, attractive sentence describing what this shop specializes in and their quality of service",
+  "keywords": [
+    "4 to 6 specific positive aspects customers praise"
+  ]
+}
+
+SHOP DETAILS:
+[Paste your shop name and what service they provide here]`;
+
+  const copyPromptTemplate = () => {
+    navigator.clipboard.writeText(MASTER_PROMPT_TEMPLATE);
+    showToast('📋 AI Master Prompt copied to clipboard!');
+  };
+
+  const handleJsonInputChange = (val) => {
+    setJsonInput(val);
+    if (!val.trim()) {
+      setJsonStatus(null);
+      return;
+    }
+
+    try {
+      const cleaned = val.replace(/```(?:json)?/gi, '').trim().replace(/`/g, '');
+      const match = cleaned.match(/\{[\s\S]*\}/);
+      if (!match) {
+        setJsonStatus({ valid: false, message: 'JSON object পাওয়া যায়নি' });
+        return;
+      }
+
+      const parsed = JSON.parse(match[0]);
+      if (parsed.shop_name) setShopName(parsed.shop_name);
+      if (parsed.card_id) setCardId(parsed.card_id);
+      if (parsed.shop_type) setShopType(parsed.shop_type);
+      if (parsed.description) setDescription(parsed.description);
+      if (parsed.keywords && Array.isArray(parsed.keywords)) setKeywords(parsed.keywords);
+      if (parsed.google_review_url && !reviewUrl) setReviewUrl(parsed.google_review_url);
+
+      setJsonStatus({ 
+        valid: true, 
+        message: `✅ Valid JSON loaded: ${parsed.shop_name || 'Business'} (${parsed.shop_type || 'Store'})` 
+      });
+    } catch (err) {
+      setJsonStatus({ valid: false, message: '⚠️ JSON ফরম্যাট সঠিক নয়' });
+    }
+  };
+
   const resetForm = () => {
     setCardId('');
     setReviewUrl('');
@@ -316,6 +380,9 @@ export default function AdminDashboard({ onOpenCard }) {
     setShopType('Other');
     setDescription('');
     setKeywords([]);
+    setJsonInput('');
+    setJsonStatus(null);
+    setSetupMode('simple');
   };
 
   // If checking authentication
@@ -658,9 +725,27 @@ export default function AdminDashboard({ onOpenCard }) {
             <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-heading)', marginBottom: 8 }}>
               ⚡ Configure NFC Review Card
             </h2>
-            <p style={{ fontSize: 13, color: 'var(--text-sub)', marginBottom: 20 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-sub)', marginBottom: 16 }}>
               AI powered by LangChain will automatically analyze Google Maps link and generate 10 natural reviews.
             </p>
+
+            {/* Mode Switch Tabs */}
+            <div className="modal-tabs">
+              <button 
+                type="button" 
+                className={`modal-tab-btn ${setupMode === 'simple' ? 'active' : ''}`}
+                onClick={() => setSetupMode('simple')}
+              >
+                <Zap size={15} /> Standard Setup
+              </button>
+              <button 
+                type="button" 
+                className={`modal-tab-btn ${setupMode === 'json' ? 'active' : ''}`}
+                onClick={() => setSetupMode('json')}
+              >
+                <FileJson size={15} /> Paste JSON Profile
+              </button>
+            </div>
 
             <form onSubmit={handleSaveCard}>
               <div style={{ marginBottom: 14 }}>
@@ -694,18 +779,62 @@ export default function AdminDashboard({ onOpenCard }) {
                 )}
               </div>
 
-              <div style={{ marginBottom: 20 }}>
-                <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
-                  3. Business / Store Name
-                </label>
-                <input 
-                  className="search-input" 
-                  style={{ paddingLeft: 14 }}
-                  placeholder="e.g. Dream Art Tattoo Studio"
-                  value={shopName}
-                  onChange={e => setShopName(e.target.value)}
-                />
-              </div>
+              {/* Mode A: Simple / Standard inputs */}
+              {setupMode === 'simple' && (
+                <div style={{ marginBottom: 20 }}>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 6 }}>
+                    3. Business / Store Name
+                  </label>
+                  <input 
+                    className="search-input" 
+                    style={{ paddingLeft: 14 }}
+                    placeholder="e.g. Dream Art Tattoo Studio"
+                    value={shopName}
+                    onChange={e => setShopName(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {/* Mode B: JSON Profile Paste */}
+              {setupMode === 'json' && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-heading)' }}>
+                      3. Paste JSON Profile (ChatGPT / AI)
+                    </label>
+                    <button 
+                      type="button" 
+                      onClick={copyPromptTemplate}
+                      style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1d4ed8', fontSize: 11.5, fontWeight: 700, padding: '4px 10px', borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                    >
+                      <Copy size={12} /> Copy Prompt
+                    </button>
+                  </div>
+                  <textarea 
+                    className="search-input"
+                    style={{ minHeight: 110, padding: '10px 14px', fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
+                    placeholder='{ "shop_name": "...", "shop_type": "...", "card_id": "...", "keywords": [...] }'
+                    value={jsonInput}
+                    onChange={e => handleJsonInputChange(e.target.value)}
+                  />
+                  {jsonStatus ? (
+                    <div style={{ fontSize: 12, fontWeight: 600, color: jsonStatus.valid ? '#15803d' : '#dc2626', marginTop: 4 }}>
+                      {jsonStatus.message}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 12, color: 'var(--text-sub)', marginTop: 4 }}>
+                      Paste JSON generated from ChatGPT or Claude to auto-fill business profile.
+                    </div>
+                  )}
+
+                  {shopName && (
+                    <div style={{ marginTop: 8, padding: '8px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, fontSize: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span><strong>Parsed Name:</strong> {shopName}</span>
+                      <span style={{ color: 'var(--text-sub)' }}>{shopType}</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                 <button type="button" className="btn-secondary" onClick={() => setModalOpen(false)}>

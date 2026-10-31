@@ -438,6 +438,37 @@ body {
   padding: 28px;
 }
 
+/* ── Modal Tabs for Setup Modes ── */
+.modal-tabs {
+  display: flex;
+  background: #f1f5f9;
+  border-radius: 12px;
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+.modal-tab-btn {
+  flex: 1;
+  padding: 9px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-sub);
+  font-size: 13px;
+  font-weight: 700;
+  border-radius: 9px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all .15s ease;
+}
+.modal-tab-btn.active {
+  background: #ffffff;
+  color: var(--google-blue);
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+}
+
 /* ── Responsive (< 768px) ── */
 @media (max-width: 768px) {
   .sidebar { display: none; }
