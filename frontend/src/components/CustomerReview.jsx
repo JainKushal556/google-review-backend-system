@@ -103,128 +103,151 @@ export default function CustomerReview({ cardId, onBack }) {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+    <div style={{ minHeight: '100vh', background: '#f8fafc', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px 14px' }}>
       <div className="google-accent-bar" />
 
-      <div style={{ width: '100%', maxWidth: 420, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 24, boxShadow: '0 20px 40px -15px rgba(15,23,42,0.1)', overflow: 'hidden' }}>
-        {/* Store Title Header */}
-        <div style={{ padding: '24px 20px 16px', textAlign: 'center', borderBottom: '1px solid #f1f5f9' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#eff6ff', padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 700, color: '#1d4ed8', marginBottom: 8 }}>
-            <span>⭐ Official Google Feedback</span>
-          </div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#0f172a', margin: 0 }}>
+      <div style={{ width: '100%', maxWidth: 410, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 24, boxShadow: '0 16px 36px -10px rgba(15,23,42,0.08)', overflow: 'hidden' }}>
+        
+        {/* Clean Header: Focused on Shop Name only */}
+        <div style={{ padding: '24px 20px 14px', textAlign: 'center' }}>
+          <h1 style={{ fontSize: 21, fontWeight: 800, color: '#0f172a', margin: 0, letterSpacing: '-0.3px' }}>
             {shop?.name || 'Store'}
           </h1>
-          <p style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>
-            Rate us 5 stars on Google Maps with 1 click
-          </p>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 3, color: '#fbbc04', marginTop: 8 }}>
+            {[...Array(5)].map((_, i) => <Star key={i} size={19} fill="#fbbc04" />)}
+          </div>
 
-          {/* Mode Switcher Tabs */}
-          <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 12, padding: 3, marginTop: 16 }}>
+          {/* Minimal Mode Tabs */}
+          <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 10, padding: 3, marginTop: 16 }}>
             <button
-              style={{ flex: 1, padding: '8px 12px', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', background: activeTab === 'carousel' ? '#fff' : 'transparent', color: activeTab === 'carousel' ? '#0f172a' : '#64748b', boxShadow: activeTab === 'carousel' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none' }}
+              style={{ flex: 1, padding: '7px 10px', border: 'none', borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', background: activeTab === 'carousel' ? '#fff' : 'transparent', color: activeTab === 'carousel' ? '#0f172a' : '#64748b', boxShadow: activeTab === 'carousel' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none' }}
               onClick={() => setActiveTab('carousel')}
             >
-              ⭐ Pick a Review
+              Select Review
             </button>
             <button
-              style={{ flex: 1, padding: '8px 12px', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', background: activeTab === 'custom' ? '#fff' : 'transparent', color: activeTab === 'custom' ? '#0f172a' : '#64748b', boxShadow: activeTab === 'custom' ? '0 2px 4px rgba(0,0,0,0.06)' : 'none' }}
+              style={{ flex: 1, padding: '7px 10px', border: 'none', borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', background: activeTab === 'custom' ? '#fff' : 'transparent', color: activeTab === 'custom' ? '#0f172a' : '#64748b', boxShadow: activeTab === 'custom' ? '0 1px 3px rgba(0,0,0,0.06)' : 'none' }}
               onClick={() => setActiveTab('custom')}
             >
-              ✨ Write Your Own
+              Custom Note
             </button>
           </div>
         </div>
 
-        {/* Content Section */}
-        <div style={{ padding: 20 }}>
+        {/* Focused Content Area */}
+        <div style={{ padding: '0 20px 22px' }}>
           {activeTab === 'carousel' ? (
-            /* ── Carousel View ── */
+            /* ── High-Contrast Clean Review Card ── */
             <div>
               {reviews.length > 0 ? (
-                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 16, padding: '20px 18px', textAlign: 'center', minHeight: 180, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', justifyContent: 'center', gap: 4, color: '#fbbc04', marginBottom: 12 }}>
-                    {[...Array(5)].map((_, i) => <Star key={i} size={20} fill="#fbbc04" />)}
-                  </div>
-                  <p style={{ fontSize: 15, fontWeight: 600, color: '#1e293b', fontStyle: 'italic', lineHeight: 1.5, margin: 0 }}>
+                <div style={{ 
+                  background: '#ffffff', 
+                  border: '1.5px solid #e2e8f0', 
+                  borderRadius: 18, 
+                  padding: '24px 20px', 
+                  textAlign: 'center', 
+                  minHeight: 150, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  boxShadow: '0 4px 14px rgba(0,0,0,0.03)'
+                }}>
+                  <p style={{ 
+                    fontSize: 16.5, 
+                    fontWeight: 600, 
+                    color: '#0f172a', 
+                    lineHeight: 1.55, 
+                    margin: 0,
+                    wordBreak: 'break-word'
+                  }}>
                     "{reviews[currentIdx]?.content}"
                   </p>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', marginTop: 12 }}>
-                    Card {currentIdx + 1} of {reviews.length}
-                  </div>
                 </div>
               ) : (
-                <div style={{ textAlign: 'center', padding: 30, color: '#64748b' }}>Generating fresh reviews...</div>
+                <div style={{ textAlign: 'center', padding: 30, color: '#64748b' }}>Loading reviews...</div>
               )}
 
-              {/* Navigation Arrows */}
+              {/* Minimal Dot & Navigation Controls */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
                 <button 
                   className="btn-secondary" 
-                  style={{ padding: '8px 12px' }}
+                  style={{ padding: '6px 12px', fontSize: 12, borderRadius: 8 }}
                   onClick={() => setCurrentIdx(prev => (prev === 0 ? reviews.length - 1 : prev - 1))}
                 >
-                  <ChevronLeft size={16} /> Previous
+                  <ChevronLeft size={15} /> Prev
                 </button>
+
                 <div style={{ display: 'flex', gap: 6 }}>
                   {reviews.map((_, i) => (
                     <span 
                       key={i} 
-                      style={{ width: 8, height: 8, borderRadius: '50%', background: i === currentIdx ? '#1a73e8' : '#cbd5e1', cursor: 'pointer' }}
+                      style={{ 
+                        width: i === currentIdx ? 16 : 6, 
+                        height: 6, 
+                        borderRadius: 4, 
+                        background: i === currentIdx ? '#1a73e8' : '#cbd5e1', 
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
                       onClick={() => setCurrentIdx(i)}
                     />
                   ))}
                 </div>
+
                 <button 
                   className="btn-secondary" 
-                  style={{ padding: '8px 12px' }}
+                  style={{ padding: '6px 12px', fontSize: 12, borderRadius: 8 }}
                   onClick={() => setCurrentIdx(prev => (prev === reviews.length - 1 ? 0 : prev + 1))}
                 >
-                  Next <ChevronRight size={16} />
+                  Next <ChevronRight size={15} />
                 </button>
               </div>
 
-              {/* Main Post Button */}
+              {/* Main Action Button */}
               <button 
                 className="btn-primary" 
-                style={{ width: '100%', marginTop: 20, padding: 14, fontSize: 15, justifyContent: 'center' }}
+                style={{ width: '100%', marginTop: 18, padding: 13, fontSize: 15, fontWeight: 700, borderRadius: 12, justifyContent: 'center' }}
                 onClick={() => copyAndOpenGoogle(reviews[currentIdx]?.content, reviews[currentIdx]?.id)}
               >
-                Post Review on Google ↗
+                Post on Google ↗
               </button>
             </div>
           ) : (
-            /* ── Write Your Own / LangChain Expand Tab ── */
+            /* ── Clean Custom Note Tab ── */
             <div>
-              <p style={{ fontSize: 13, color: '#475569', marginBottom: 10 }}>
-                Tell us what you liked (product, service, staff) and AI will polish it into a 5-star review!
-              </p>
               <textarea
-                style={{ width: '100%', minHeight: 90, padding: 12, borderRadius: 12, border: '1px solid #cbd5e1', fontSize: 14, outline: 'none', resize: 'vertical' }}
-                placeholder="e.g. loved the helpful owner, clean place, and fast service..."
+                style={{ 
+                  width: '100%', 
+                  minHeight: 85, 
+                  padding: 12, 
+                  borderRadius: 12, 
+                  border: '1.5px solid #cbd5e1', 
+                  fontSize: 14, 
+                  outline: 'none', 
+                  resize: 'none',
+                  fontFamily: 'inherit'
+                }}
+                placeholder="What did you like? (e.g. good service, polite staff)..."
                 value={customInput}
                 onChange={e => setCustomInput(e.target.value)}
               />
               <button 
                 className="btn-primary" 
-                style={{ width: '100%', marginTop: 10, padding: 12, justifyContent: 'center' }}
+                style={{ width: '100%', marginTop: 10, padding: 12, fontSize: 14, borderRadius: 12, justifyContent: 'center' }}
                 onClick={handleGenerateCustom}
                 disabled={generating}
               >
-                <Sparkles size={16} /> {generating ? 'Generating via LangChain...' : 'Generate 5★ Review'}
+                <Sparkles size={16} /> {generating ? 'Crafting Review...' : 'Generate 5★ Review'}
               </button>
 
               {customResult && (
-                <div style={{ marginTop: 16, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: 14 }}>
-                  <div style={{ display: 'flex', gap: 4, color: '#fbbc04', marginBottom: 8 }}>
-                    {[...Array(5)].map((_, i) => <Star key={i} size={16} fill="#fbbc04" />)}
-                  </div>
-                  <p style={{ fontSize: 14, color: '#14532d', fontWeight: 600, margin: '0 0 12px 0' }}>
+                <div style={{ marginTop: 14, background: '#f8fafc', border: '1.5px solid #86efac', borderRadius: 14, padding: 16 }}>
+                  <p style={{ fontSize: 15, color: '#0f172a', fontWeight: 600, margin: '0 0 12px 0', lineHeight: 1.5 }}>
                     "{customResult}"
                   </p>
                   <button 
                     className="btn-primary" 
-                    style={{ width: '100%', padding: 10, background: '#16a34a', justifyContent: 'center' }}
+                    style={{ width: '100%', padding: 11, background: '#16a34a', borderRadius: 10, justifyContent: 'center', fontSize: 14 }}
                     onClick={() => copyAndOpenGoogle(customResult)}
                   >
                     Post on Google ↗
@@ -236,9 +259,9 @@ export default function CustomerReview({ cardId, onBack }) {
         </div>
 
         {onBack && (
-          <div style={{ padding: '12px 20px', background: '#f8fafc', borderTop: '1px solid #f1f5f9', textAlign: 'center' }}>
-            <button style={{ border: 'none', background: 'transparent', color: '#64748b', fontSize: 13, cursor: 'pointer', fontWeight: 600 }} onClick={onBack}>
-              ← Return to Admin Panel
+          <div style={{ padding: '10px 16px', background: '#f8fafc', borderTop: '1px solid #f1f5f9', textAlign: 'center' }}>
+            <button style={{ border: 'none', background: 'transparent', color: '#94a3b8', fontSize: 12, cursor: 'pointer', fontWeight: 600 }} onClick={onBack}>
+              ← Back to Admin
             </button>
           </div>
         )}
